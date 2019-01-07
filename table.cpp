@@ -173,14 +173,29 @@ std::string tag(std::string const& t,T const& body){
 	return ss.str();
 }
 
-std::string html(auto a){ return tag("html",a); }
-std::string table(auto a){ return tag("table",a); }
-std::string tr(auto a){ return tag("tr",a); }
-std::string td(auto a){ return tag("td",a); }
-std::string head(auto a){ return tag("head",a); }
-auto body(auto a){ return tag("body",a); }
-auto title(auto a){ return tag("title",a); }
-auto h1(auto a){ return tag("h1",a); }
+template<typename T>
+std::string html(T a){ return tag("html",a); }
+
+template<typename T>
+std::string table(T a){ return tag("table",a); }
+
+template<typename T>
+std::string tr(T a){ return tag("tr",a); }
+
+template<typename T>
+std::string td(T a){ return tag("td",a); }
+
+template<typename T>
+std::string head(T a){ return tag("head",a); }
+
+template<typename T>
+auto body(T a){ return tag("body",a); }
+
+template<typename T>
+auto title(T a){ return tag("title",a); }
+
+template<typename T>
+auto h1(T a){ return tag("h1",a); }
 
 std::vector<bool> bools(){
 	std::vector<bool> r;
