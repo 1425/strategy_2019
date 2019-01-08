@@ -10,6 +10,7 @@
 #include<numeric>
 #include<sys/stat.h>
 #include<iterator>
+#include<climits>
 
 #define nyi { std::cout<<"nyi "<<__LINE__<<"\n"; exit(44); }
 #define PRINT(X) { std::cout<<""#X<<":"<<(X)<<"\n"; }
@@ -29,6 +30,23 @@ std::vector<T>& operator|=(std::vector<T> &a,std::vector<T> const& b){
 template<typename T>
 std::set<T>& operator|=(std::set<T>& a,std::vector<T> const& b){
 	a.insert(b.begin(),b.end());
+	return a;
+}
+
+template<typename T>
+std::set<T>& operator|=(std::set<T>& a,T t){
+	a.insert(t);
+	return a;
+}
+
+template<typename T>
+std::vector<T> to_vec(std::set<T> a){
+	return std::vector<T>{begin(a),end(a)};
+}
+
+template<typename T>
+std::set<T> operator|(std::set<T> a,std::set<T> const& b){
+	a.insert(begin(b),end(b));
 	return a;
 }
 
@@ -58,9 +76,31 @@ std::ostream& operator<<(std::ostream& o,std::vector<T> const& a){
 	return o<<"]";
 }
 
+template<typename T>
+std::ostream& operator<<(std::ostream& o,std::set<T> const& a){
+	o<<"{ ";
+	std::ostream_iterator<T> out_it(o," ");
+	std::copy(begin(a),end(a),out_it);
+	return o<<"}";
+}
+
 std::vector<int> range(unsigned lim){
 	std::vector<int> r(lim);
 	std::iota(begin(r),end(r),0);
+	return r;
+}
+
+template<size_t LEN>
+std::array<size_t,LEN> range_st(){
+	std::array<size_t,LEN> r;
+	std::iota(begin(r),end(r),0);
+	return r;
+}
+
+std::vector<int> range(int start,int lim){
+	assert(lim>=start);
+	std::vector<int> r(lim-start);
+	std::iota(begin(r),end(r),start);
 	return r;
 }
 
@@ -71,6 +111,7 @@ void write_file(std::string filename,std::string data){
 }
 
 int min(int a,unsigned b){
+	assert(b<INT_MAX);
 	return std::min(a,(int)b);
 }
 
@@ -102,6 +143,17 @@ T sum(std::array<T,LEN> const& a){
 	return std::accumulate(begin(a),end(a),T{});
 }
 
+template<typename T>
+T sum(std::vector<T> v){
+	return std::accumulate(begin(v),end(v),T{});
+}
+
+template<typename T>
+T mean(std::vector<T> v){
+	assert(v.size());
+	return sum(v)/v.size();
+}
+
 template<typename A,typename B>
 std::vector<std::pair<A,B>> cross(std::vector<A> const& a,std::vector<B> const& b){
 	std::vector<std::pair<A,B>> r;
@@ -130,8 +182,22 @@ T filter(Func f,T const& t){
 }
 
 template<typename Func,typename T>
+std::set<T> filter(Func f,std::set<T> const& t){
+	std::set<T> r;
+	std::copy_if(begin(t),end(t),inserter(r,r.end()),f);
+	return r;
+}
+
+template<typename Func,typename T>
 auto mapf(Func f,std::vector<T> v) -> std::vector< decltype(f(v[0])) > {
 	std::vector<decltype(f(v[0]))> r(v.size());
+	std::transform(begin(v),end(v),begin(r),f);
+	return r;
+}
+
+template<typename Func,typename K,typename V>
+auto mapf(Func f,std::map<K,V> v) -> std::vector< decltype(f(*begin(v))) > {
+	std::vector<decltype(f(*begin(v)))> r(v.size());
 	std::transform(begin(v),end(v),begin(r),f);
 	return r;
 }
@@ -186,6 +252,9 @@ template<typename T>
 std::string td(T a){ return tag("td",a); }
 
 template<typename T>
+std::string th(T a){ return tag("th",a); }
+
+template<typename T>
 std::string head(T a){ return tag("head",a); }
 
 template<typename T>
@@ -197,10 +266,123 @@ auto title(T a){ return tag("title",a); }
 template<typename T>
 auto h1(T a){ return tag("h1",a); }
 
+template<typename T>
+auto small(T a){ return tag("small",a); }
+
+std::string join(std::vector<std::string> a){
+	std::stringstream ss;
+	for(auto elem:a) ss<<elem;
+	return ss.str();
+}
+
 std::vector<bool> bools(){
 	std::vector<bool> r;
 	r|=0;
 	r|=1;
+	return r;
+}
+
+#define RM_REF(X) typename std::remove_reference<X>::type
+
+template<typename T>
+void print_lines(T const& a){
+	/*std::ostream_iterator<RM_REF(decltype(*begin(a)))> out_it(std::cout,"\n");
+	std::copy(begin(a),end(a),out_it);*/
+	for(auto elem:a){
+		std::cout<<elem<<"\n";
+	}
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& o,std::optional<T> const& a){
+	if(a) return o<<*a;
+	return o<<"NULL";
+}
+
+template<typename K,typename V>
+std::map<K,V> without_key(std::map<K,V> a,K key){
+	a.erase(a.find(key));
+	return a;
+}
+
+template<typename T>
+std::vector<T> sorted(std::vector<T> a){
+	std::sort(begin(a),end(a));
+	return a;
+}
+
+template<typename T>
+std::vector<T> reversed(std::vector<T> a){
+	std::reverse(begin(a),end(a));
+	return a;
+}
+
+template<typename T>
+std::vector<std::pair<size_t,T>> enumerate_from(size_t i,std::vector<T> const& a){
+	std::vector<std::pair<size_t,T>> r;
+	for(auto elem:a){
+		r|=make_pair(i++,elem);
+	}
+	return r;
+}
+
+template<typename T>
+T id(T t){ return t; }
+
+#define FILTER(F,X) filter([&](auto x){ return F(x); },X)
+
+template<typename Func,typename T>
+T take_first(Func f,std::multiset<T> m){
+	for(auto elem:m){
+		if(f(elem)){
+			return elem;
+		}
+	}
+	assert(0);
+}
+
+#define RM_CONST(X) typename std::remove_const<X>::type
+
+#define ELEM(X) RM_CONST(RM_REF(decltype(*begin(X))))
+
+template<typename Func,typename T>
+auto mapf(Func f,std::multiset<T> a)->
+	std::vector<decltype(f(*begin(a)))>
+{
+	std::vector<decltype(f(*begin(a)))> r;
+	for(auto elem:a){
+		r|=f(elem);
+	}
+	return r;
+}
+
+template<typename Func,typename T>
+auto mapf(Func f,std::set<T> a)->
+	std::vector<decltype(f(*begin(a)))>
+{
+	std::vector<decltype(f(*begin(a)))> r;
+	for(auto elem:a){
+		r|=f(elem);
+	}
+	return r;
+}
+
+template<typename T>
+T mode(std::vector<T> v){
+	assert(v.size());
+	auto m=std::multiset<T>(begin(v),end(v));
+	auto max_count=max(mapf([&](auto x){ return m.count(x); },m));
+	return take_first([&](auto x){ return m.count(x)==max_count; },m);
+}
+
+template<typename T>
+std::vector<T> non_null(std::vector<std::optional<T>> a){
+	std::vector<T> r;
+	for(auto elem:a){
+		if(elem){
+			r|=*elem;
+		}
+	}
 	return r;
 }
 
@@ -236,13 +418,26 @@ Climb_type rand(const Climb_type*){
 	}
 }
 
+#define ROBOT_CAPABILITIES_ITEMS(X)\
+	X(Climb_type,climb_type,Climb_type::P3)\
+	X(float,climb_time,TELEOP_LENGTH+1)\
+	X(float,ball_time,TELEOP_LENGTH+1)\
+	X(float,hatch_time,TELEOP_LENGTH+1)
+
 struct Robot_capabilities{
 	//by default, can do almost nothing.
 	Climb_type climb_type=Climb_type::P3;
 	//all the times are assumed to be >0.
-	float climb_time=TELEOP_LENGTH;
-	float ball_time=TELEOP_LENGTH,hatch_time=TELEOP_LENGTH;
+	float climb_time=TELEOP_LENGTH+1;
+	float ball_time=TELEOP_LENGTH+1,hatch_time=TELEOP_LENGTH+1;
 };
+
+bool operator<(Robot_capabilities const& a,Robot_capabilities const& b){
+	#define X(A,B,C) if(a.B<b.B) return 1; if(b.B<a.B) return 0;
+	ROBOT_CAPABILITIES_ITEMS(X)
+	#undef X
+	return 0;
+}
 
 /*
 asignments for robots based on their capabilities
@@ -265,17 +460,26 @@ std::ostream& operator<<(std::ostream& o,Robot_capabilities const& a){
 Robot_capabilities rand(const Robot_capabilities*){
 	Robot_capabilities r;
 	r.climb_type=rand((Climb_type*)nullptr);
-	r.climb_time=rand()%30;
-	r.ball_time=rand()%100;
-	r.hatch_time=rand()%100;
+	r.climb_time=1+rand()%30;
+	r.ball_time=1+rand()%100;
+	r.hatch_time=1+rand()%100;
 	return r;
 }
 
 using Alliance_capabilities=std::array<Robot_capabilities,3>;
 
+using Balls=int;
+using Hatches=int;
+
+#define ROBOT_STRATEGY_ITEMS(X)\
+	X(Balls,balls)\
+	X(Hatches,hatches)\
+	X(bool,climb)
+
+#define INST(A,B) A B;
+
 struct Robot_strategy{
-	int balls,hatches;
-	bool climb;
+	ROBOT_STRATEGY_ITEMS(INST)
 };
 
 std::ostream& operator<<(std::ostream& o,Robot_strategy const& a){
@@ -284,9 +488,18 @@ std::ostream& operator<<(std::ostream& o,Robot_strategy const& a){
 	return o<<")";
 }
 
+bool operator<(Robot_strategy const& a,Robot_strategy const& b){
+	#define X(A,B) if(a.B<b.B) return 1; if(b.B<a.B) return 0;
+	ROBOT_STRATEGY_ITEMS(X)
+	#undef X
+	return 0;
+}
+
 vector<Robot_strategy> available_strategies(Robot_capabilities const& capabilities){
 	vector<Robot_strategy> r;
-	for(auto climb:bools()){
+	auto climb_available=capabilities.climb_time<TELEOP_LENGTH;
+	auto climb_options=climb_available?vector<bool>{{0,1}}:vector<bool>{{0}};
+	for(auto climb:climb_options){
 		auto remaining_time=TELEOP_LENGTH-capabilities.climb_time;
 		unsigned max_hatches=remaining_time/capabilities.hatch_time;
 		for(auto hatches:range(1+max_hatches)){
@@ -340,16 +553,16 @@ void run(string filename,string title,Func f,Colorizer color){
 		"tr",
 		[](){
 			stringstream ss;
-			for(auto balls:range(SPACES+1)){
+			for(auto balls:range_st<SPACES+1>()){
 				ss<<tag("th",balls);
 			}
 			return ss.str();
 		}()
 	);
-	for(auto balls:range(SPACES+1)){
+	for(auto balls:range_st<SPACES+1>()){
 		stringstream s2;
 		s2<<tag("th",as_string(balls));
-		for(auto hatches:range(SPACES+1)){
+		for(auto hatches:range_st<SPACES+1>()){
 			s2<<tag("td "+color(balls,hatches),f(balls,hatches));
 		}
 		ss<<tag(
@@ -508,13 +721,427 @@ int points(Alliance_capabilities cap,Alliance_strategy strat){
 	return p+c;
 }
 
-int by_alliance(){
-	Alliance_capabilities cap;
-	PRINT(cap);
+using Team=int;//official season; all the teams will have real numbers.
+
+Team rand(const Team*){
+	return 1+rand()%8000;
+}
+
+using Match=int;//initially, assume that these are all qual match numbers.
+using Climb_result=std::optional<Climb_type>;
+
+template<typename T>
+std::optional<T> rand(const std::optional<T>*){
+	if(rand()%2){
+		return rand((T*)0);
+	}
+	std::optional<T> r;
+	return r; //not sure why g++ was warning about returning in one step here.
+}
+
+#define ROBOT_MATCH_DATA_ITEMS(X)\
+	X(Team,team,0)\
+	X(Match,match,0)\
+	X(unsigned,balls,0)\
+	X(unsigned,hatches,0)\
+	X(Climb_result,climb,{})
+
+struct Robot_match_data{
+	#define X(A,B,C) A B=C;
+	ROBOT_MATCH_DATA_ITEMS(X)
+	#undef X
+};
+
+std::ostream& operator<<(std::ostream& o,Robot_match_data const& a){
+	o<<"Robot_match_data(";
+	o<<"team:"<<a.team<<" ";
+	o<<"match:"<<a.match<<" ";
+	o<<"balls:"<<a.balls<<" ";
+	o<<"hatches:"<<a.hatches<<" ";
+	o<<"climb:"<<a.climb<<" ";
+	return o<<")";
+}
+
+bool operator==(Robot_match_data const& a,Robot_match_data const& b){
+	#define X(A,B,C) if(a.B!=b.B) return 0;
+	ROBOT_MATCH_DATA_ITEMS(X)
+	#undef X
+	return 1;
+}
+
+unsigned rand(const unsigned*){
+	return rand()%22;
+}
+
+Robot_match_data rand(const Robot_match_data*){
+	return Robot_match_data{
+		#define X(A) rand((A*)nullptr),
+		X(Team)
+		X(Match)
+		X(unsigned)
+		X(unsigned)
+		X(Climb_result)
+		#undef X
+	};
+}
+
+using Scouting_data=vector<Robot_match_data>;
+
+/*Scouting_data rand(const Scouting_data*){
+	nyi
+}*/
+
+auto balls(Robot_strategy a){
+	return a.balls;
+}
+
+auto balls(Alliance_strategy a){
+	return MAP(balls,a);
+}
+
+auto hatches(Robot_strategy a){
+	return a.hatches;
+}
+
+auto hatches(Alliance_strategy a){
+	return MAP(hatches,a);
+}
+
+Alliance_strategy normalize(Alliance_strategy a){
+	a[0].balls=sum(balls(a));
+	a[0].hatches=sum(hatches(a));
+	a[1].balls=0;
+	a[1].hatches=0;
+	a[2].balls=0;
+	a[2].hatches=0;
+	return a;
+}
+
+template<typename T>
+set<T> to_set(vector<T> v){
+	return std::set<T>(begin(v),end(v));
+}
+
+template<typename T,size_t LEN>
+std::array<T,LEN> sorted(std::array<T,LEN> a){
+	std::sort(begin(a),end(a));
+	return a;
+}
+
+static map<Alliance_capabilities,int> cache;
+
+int points(Alliance_capabilities const& cap){
+	auto n=sorted(cap);
+	auto f=cache.find(n);
+	if(f!=cache.end()){
+		return f->second;
+	}
+
+	//auto as=to_set(mapf(normalize,available_strategies(cap)));
+	//auto as=to_set(available_strategies(cap));
 	auto as=available_strategies(cap);
-	PRINT(as);
+	//put in a filter here to only look at the ones that have the possiblity to be the best?
+
 	auto m=mapf([=](auto x){ return points(cap,x); },as);
-	PRINT(m);
+	auto r=max(m);
+	cache[n]=r;
+	return r;
+}
+
+static const int TOURNAMENT_SIZE=30; //old cmp division size
+//TODO: Try out with fewer than 24 teams.
+
+template<typename T>
+set<T> choose(size_t num,set<T> a){
+	if(num==0){
+		return {};
+	}
+	assert(a.size());
+	auto other=choose(num-1,a);
+	auto left=filter([other](auto x){ return other.count(x)==0; },a);
+	return other|set<T>{to_vec(left)[rand()%left.size()]};
+}
+
+string to_csv(Scouting_data data){
+	stringstream ss;
+	ss<<"team,match,balls,hatches,climb\n";
+	for(auto d:data){
+		ss<<d.team<<","<<d.match<<","<<d.balls<<","<<d.hatches<<","<<d.climb<<"\n";
+	}
+	return ss.str();
+}
+
+vector<string> split(string s,char target){
+	vector<string> r;
+	stringstream ss;
+	for(auto c:s){
+		if(c==target){
+			r|=ss.str();
+			ss.str("");
+		}else{
+			ss<<c;
+		}
+	}
+	if(ss.str().size()){
+		r|=ss.str();
+	}
+	return r;
+}
+
+int parse(const int*,std::string s){
+	return atoi(s.c_str());
+}
+
+unsigned int parse(const unsigned int*,std::string s){
+	return atoi(s.c_str());
+}
+
+Climb_type parse(const Climb_type*,std::string s){
+	if(s=="P3") return Climb_type::P3;
+	if(s=="P6") return Climb_type::P6;
+	if(s=="P12") return Climb_type::P12;
+	assert(0);
+}
+
+Climb_result parse(const Climb_result*,std::string s){
+	if(s=="NULL"){
+		return Climb_result{};
+	}
+	return parse((Climb_type*)nullptr,s);
+}
+
+Scouting_data read_data(){
+	ifstream f("example.csv");
+	assert(f.good());
+	string s;
+	getline(f,s);
+	assert(s=="team,match,balls,hatches,climb");
+	Scouting_data r;
+	while(f.good()){
+		getline(f,s);
+		auto sp=split(s,',');
+		if(sp.empty()){
+			continue;
+		}
+		assert(sp.size()==5);
+		r|=Robot_match_data{
+			parse((Team*)nullptr,sp[0]),
+			parse((Match*)nullptr,sp[1]),
+			parse((unsigned*)nullptr,sp[2]),
+			parse((unsigned*)nullptr,sp[3]),
+			parse((Climb_result*)nullptr,sp[4])
+		};
+	}
+	return r;
+}
+
+Scouting_data example_input(){
+	set<Team> teams;
+	for(auto _:range(TOURNAMENT_SIZE)){
+		(void)_;
+		Team team;
+		do{
+			team=rand((Team*)nullptr);
+		}while(teams.count(team));
+		teams|=team;
+	}
+	//PRINT(teams);
+	unsigned matches=teams.size()*12/6;
+	Scouting_data r;
+	for(auto match:range(1,matches+1)){
+		//PRINT(match);
+		auto this_match=choose(6,teams);
+		for(auto team:this_match){
+			auto d=rand((Robot_match_data*)0);
+			d.team=team;
+			d.match=match;
+			r|=d;
+		}
+	}
+	return r;
+}
+
+void csv_test(){
+	auto r=example_input();
+	write_file("example.csv",to_csv(r));
+	assert(read_data()==r);
+}
+
+map<Team,Robot_capabilities> interpret_data(Scouting_data d){
+	//this is where the sausage is made
+
+	map<Team,Robot_capabilities> r;
+	for(auto [team,data]:group([](auto x){ return x.team; },d)){
+		//Nick says that he and Evan may have a nice thing to put here.
+		//For now, just throw something in.
+
+		auto climbs=non_null(mapf([](auto x){ return x.climb; },data));
+		vector<float> ball_times;
+		vector<float> hatch_times;
+		static const int ENDGAME_USED=20;
+		for(auto match:data){
+			auto balls=match.balls;
+			auto hatches=match.hatches;
+			auto actions=balls+hatches;
+			if(actions){
+				auto action_time=(0.0+TELEOP_LENGTH-ENDGAME_USED)/actions;
+				for(auto _:range(balls)){
+					(void)_;
+					ball_times|=action_time;
+				}
+				for(auto _:range(hatches)){
+					(void)_;
+					hatch_times|=action_time;
+				}
+			}else{
+				auto penalty=TELEOP_LENGTH+1; //This is just chosen to be anything that is longer than the match.
+				ball_times|=penalty;
+				hatch_times|=penalty;
+			}
+		}
+		float ball_time=mean(ball_times);
+		float hatch_time=mean(hatch_times);
+		r[team]=Robot_capabilities{
+			climbs.size()?mode(climbs):Climb_type::P3,
+			ENDGAME_USED,//climb_time
+			ball_time,
+			hatch_time
+		};
+	}
+	return r;
+}
+
+string th1(string s){ return th(s); }
+
+int by_alliance(){
+	csv_test();
+	auto robots=interpret_data(example_input());
+
+	auto t2="Robot capabilities";
+	write_file(
+		"robot_capabilities.html",
+		html(
+			head(title(t2))+
+			body(
+				h1(t2)+
+				tag("table border",
+					tr(join(mapf(
+						th1,
+						vector<string>{"Team number","Climb type","Climb time","Ball time(s)","Hatch time (s)"}
+					)))+
+					join(mapf(
+						[](auto p){
+							auto [team,cap]=p;
+							return tr(
+								td(team)+
+								td(cap.climb_type)+td(cap.climb_time)+td(cap.ball_time)+td(cap.hatch_time)
+							);
+						},
+						robots
+					))
+				)
+			)
+		)
+	);
+
+	/*map<Team,Robot_capabilities> robots;
+	for(auto team:range(TOURNAMENT_SIZE)){
+		robots[team]=rand((Robot_capabilities*)nullptr);
+	}*/
+	assert(robots.size());
+	auto target_team=begin(robots)->first;//TODO: make it us & configurable
+
+	auto own_cap=robots[target_team];
+	auto other_teams=without_key(robots,target_team);
+
+	auto first_picks=reversed(sorted(mapf(
+		[=](auto p){
+			auto [team,cap]=p;
+			return make_pair(
+				points(Alliance_capabilities{own_cap,cap,Robot_capabilities{}}),
+				team
+			);
+		},
+		other_teams
+	)));
+
+	//enumerate_from(1,first_picks);
+	print_lines(enumerate_from(1,first_picks));
+
+	//first pass, rank by # of points would get alone?
+	//first pass, rank by # of points would get with given robot
+	//assume that robot #3 is going to go and play defense
+	//TODO: Make the 2d pick list with first pick in the column down, and second pick going across
+	using Points=int;
+	map<Team,vector<pair<Points,Team>>> second_pick;
+	for(auto [p1_team,p1_cap]:other_teams){
+		PRINT(p1_team);
+		auto remaining_teams=without_key(other_teams,p1_team);
+		second_pick[p1_team]=reversed(sorted(mapf(
+			[=](auto p){
+				auto [p2_team,p2_cap]=p;
+				return make_pair(
+					points(Alliance_capabilities{own_cap,p1_cap,p2_cap}),
+					p2_team
+				);
+			},
+			remaining_teams
+		)));
+	}
+
+	auto t1="Team "+as_string(target_team)+" Picklist 2019";
+	auto cell=[](pair<int,int> p){
+		return td(
+			as_string(p.second)+"<br>"+small(p.first)
+		);
+	};
+	write_file(
+		"picks.html",
+		html(
+			head(title(t1))+
+			body(
+				h1(t1)+
+				tag("table border",
+					tr(
+						tag("th rowspan=2 colspan=2","First pick")+
+						tag("th colspan=22","Second pick")
+					)+
+					tr(join(mapf([](auto i){ return th(i); },range(1,1+22))))+
+					//TODO: Put the main body of the table here
+					join(mapf(
+						[&](int i)->string{
+							auto first_pick=first_picks[i].second;
+							return tr(
+								[](){
+									/*if(i==0){
+										return tag("th rowspan=23","First pick");
+									}*/
+									return "";
+								}()+
+								th(i+1)+
+								cell(first_picks[i])+
+								join(mapf(
+									[&](int j){
+										//return td("2nd pick:"+as_string(i)+" "+as_string(j));
+										return cell(second_pick[first_pick][j]);
+									},
+									range(22)
+								))
+							);
+						},
+						range(23)
+					))
+				)
+			)
+		)
+	);
+
+	//TODO: Optimize
+	//TODO: Make the 2d pick table!
+
+	//TODO: Show best strategy for given alliance
+	//TODO: Make a whole tournament work for robots
+	//TODO: Check division size for the world championship, and the size for PNW districts
 	return 0;
 }
 

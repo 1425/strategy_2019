@@ -1,7 +1,7 @@
-CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z
+CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -O2 -pg
 
 test: table
-	./table --standard
+	./table --strategy
 
 .PHONY: clean
 clean:
