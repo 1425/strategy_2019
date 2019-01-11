@@ -183,9 +183,23 @@ T filter(Func f,T const& t){
 	return r;
 }
 
+template<typename Func,typename T,size_t LEN>
+std::vector<T> filter(Func f,std::array<T,LEN> const& t){
+	std::vector<T> r;
+	std::copy_if(begin(t),end(t),back_inserter(r),f);
+	return r;
+}
+
 template<typename Func,typename T>
 std::set<T> filter(Func f,std::set<T> const& t){
 	std::set<T> r;
+	std::copy_if(begin(t),end(t),inserter(r,r.end()),f);
+	return r;
+}
+
+template<typename Func,typename T>
+std::multiset<T> filter(Func f,std::multiset<T> const& t){
+	std::multiset<T> r;
 	std::copy_if(begin(t),end(t),inserter(r,r.end()),f);
 	return r;
 }
@@ -386,6 +400,127 @@ std::vector<T> non_null(std::vector<std::optional<T>> a){
 		}
 	}
 	return r;
+}
+
+template<typename T>
+std::multiset<T>& operator|=(std::multiset<T>& a,T t){
+	a.insert(t);
+	return a;
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& o,std::multiset<T> const& a){
+	o<<"{ ";
+	for(auto elem:a){
+		o<<elem<<" ";
+	}
+	return o<<"}";
+}
+
+template<typename K,typename V>
+std::ostream& operator<<(std::ostream& o,std::map<K,V> const& a){
+	o<<"{ ";
+	for(auto elem:a){
+		o<<elem<<" ";
+	}
+	return o<<"}";
+}
+
+template<typename T>
+std::multiset<T>& operator|=(std::multiset<T>& a,std::multiset<T> b){
+	a.insert(b.begin(),b.end());
+	return a;
+}
+
+template<typename T>
+std::multiset<T> operator+(std::multiset<T> a,std::multiset<T> b){
+	a|=b;
+	return a;
+}
+
+template<typename A,typename B>
+std::vector<std::pair<A,B>> zip(std::vector<A> const& a,std::vector<B> const& b){
+	return mapf(
+		[&](auto i){ return std::make_pair(a[i],b[i]); },
+		range(min(a.size(),b.size()))
+	);
+}
+
+template<typename A,typename B,size_t LEN>
+std::array<std::pair<A,B>,LEN> zip(std::array<A,LEN> const& a,std::array<B,LEN> const& b){
+	std::array<std::pair<A,B>,LEN> r;
+	std::transform(
+		begin(a),end(a),begin(b),begin(r),
+		[](auto a1,auto b1){ return std::make_pair(a1,b1); }
+	);
+	return r;
+}
+
+template<typename Func,typename K,typename V>
+auto map_values(Func f,std::map<K,V> const& in){
+	std::map<K,decltype(f(in.begin()->second))> r;
+	for(auto [k,v]:in){
+		r[k]=f(v);
+	}
+	return r;
+}
+
+template<typename K,typename V>
+std::vector<V> values(std::map<K,V> const& a){
+	return mapf([](auto x){ return x.second; },a);
+}
+
+template<typename T>
+std::multiset<T> flatten(std::vector<std::multiset<T>> a){
+	std::multiset<T> r;
+	for(auto elem:a){
+		r|=elem;
+	}
+	return r;
+}
+
+void indent_by(unsigned indent){
+	for(auto _:range(indent)){
+		(void)_;
+		std::cout<<"    ";
+	}
+}
+
+template<typename T>
+void print_r(unsigned indent,T const& t){
+	indent_by(indent);
+	std::cout<<t<<"\n";
+}
+
+template<typename A,typename B>
+void print_r(unsigned indent,std::pair<A,B> const& p){
+	indent_by(indent);
+	std::cout<<"pair\n";
+	print_r(indent+1,p.first);
+	print_r(indent+1,p.second);
+}
+
+template<typename K,typename V>
+void print_r(unsigned indent,std::map<K,V> const& a){
+	indent_by(indent);
+	std::cout<<"map\n";
+	for(auto elem:a){
+		print_r(indent+1,elem);
+	}
+}
+
+template<typename T>
+void print_r(unsigned indent,std::vector<T> const& a){
+	indent_by(indent);
+	std::cout<<"vector\n";
+	for(auto elem:a){
+		print_r(indent+1,elem);
+	}
+}
+
+template<typename T>
+void print_r(T t){
+	print_r(0,t);
 }
 
 #endif

@@ -301,21 +301,6 @@ int by_pieces(){
 	return 0;
 }
 
-/*template<typename A,typename B>
-vector<pair<A,B>> zip(vector<A> const& a,vector<B> const& b){
-	nyi
-}*/
-
-template<typename A,typename B,size_t LEN>
-array<pair<A,B>,LEN> zip(array<A,LEN> const& a,array<B,LEN> const& b){
-	array<pair<A,B>,LEN> r;
-	std::transform(
-		begin(a),end(a),begin(b),begin(r),
-		[](auto a1,auto b1){ return make_pair(a1,b1); }
-	);
-	return r;
-}
-
 int points(Alliance_capabilities cap,Alliance_strategy strat){
 	auto balls=sum(mapf([](auto a){ return a.balls; },strat));
 	auto hatches=sum(mapf([](auto a){ return a.hatches; },strat));
@@ -355,9 +340,30 @@ std::optional<T> rand(const std::optional<T>*){
 	return r; //not sure why g++ was warning about returning in one step here.
 }
 
+//using Alliance=int;
+enum class Alliance{RED,BLUE};
+
+std::ostream& operator<<(std::ostream& o,Alliance a){
+	if(a==Alliance::RED) return o<<"RED";
+	if(a==Alliance::BLUE) return o<<"BLUE";
+	assert(0);
+}
+
+Alliance rand(const Alliance*){
+	return (rand()%2)?Alliance::RED:Alliance::BLUE;
+}
+
+Alliance parse(const Alliance*,string const& s){
+	if(s=="RED") return Alliance::RED;
+	if(s=="BLUE") return Alliance::BLUE;
+	PRINT(s);
+	assert(0);
+}
+
 #define ROBOT_MATCH_DATA_ITEMS(X)\
 	X(Team,team,0)\
 	X(Match,match,0)\
+	X(Alliance,alliance,{})\
 	X(unsigned,balls,0)\
 	X(unsigned,hatches,0)\
 	X(Climb_result,climb,{})
@@ -391,12 +397,8 @@ unsigned rand(const unsigned*){
 
 Robot_match_data rand(const Robot_match_data*){
 	return Robot_match_data{
-		#define X(A) rand((A*)nullptr),
-		X(Team)
-		X(Match)
-		X(unsigned)
-		X(unsigned)
-		X(Climb_result)
+		#define X(A,B,C) rand((A*)nullptr),
+		ROBOT_MATCH_DATA_ITEMS(X)
 		#undef X
 	};
 }
@@ -480,9 +482,17 @@ set<T> choose(size_t num,set<T> a){
 
 string to_csv(Scouting_data data){
 	stringstream ss;
-	ss<<"team,match,balls,hatches,climb\n";
+	#define X(A,B,C) ss<<""#B<<",";
+	ROBOT_MATCH_DATA_ITEMS(X)
+	#undef X
+	ss<<"\n";
+	//ss<<"team,match,balls,hatches,climb\n";
 	for(auto d:data){
-		ss<<d.team<<","<<d.match<<","<<d.balls<<","<<d.hatches<<","<<d.climb<<"\n";
+		#define X(A,B,C) ss<<d.B<<",";
+		ROBOT_MATCH_DATA_ITEMS(X)
+		#undef X
+		ss<<"\n";
+		//ss<<d.team<<","<<d.match<<","<<d.balls<<","<<d.hatches<<","<<d.climb<<"\n";
 	}
 	return ss.str();
 }
@@ -526,12 +536,21 @@ Climb_result parse(const Climb_result*,std::string s){
 	return parse((Climb_type*)nullptr,s);
 }
 
+string pop(vector<string>& v){
+	//warning! this is O(n) and modifies its argument
+	assert(v.size());
+	auto r=v[0];
+	v.erase(v.begin());
+	//PRINT(v);
+	return r;
+}
+
 Scouting_data read_data(){
 	ifstream f("example.csv");
 	assert(f.good());
 	string s;
 	getline(f,s);
-	assert(s=="team,match,balls,hatches,climb");
+	assert(s=="team,match,alliance,balls,hatches,climb,");
 	Scouting_data r;
 	while(f.good()){
 		getline(f,s);
@@ -539,13 +558,16 @@ Scouting_data read_data(){
 		if(sp.empty()){
 			continue;
 		}
-		assert(sp.size()==5);
+		//assert(sp.size()==5);
 		r|=Robot_match_data{
-			parse((Team*)nullptr,sp[0]),
+			#define X(A,B,C) parse((A*)nullptr,pop(sp)),
+			ROBOT_MATCH_DATA_ITEMS(X)
+			#undef X
+			/*parse((Team*)nullptr,sp[0]),
 			parse((Match*)nullptr,sp[1]),
 			parse((unsigned*)nullptr,sp[2]),
 			parse((unsigned*)nullptr,sp[3]),
-			parse((Climb_result*)nullptr,sp[4])
+			parse((Climb_result*)nullptr,sp[4])*/
 		};
 	}
 	return r;
@@ -583,8 +605,127 @@ void csv_test(){
 	assert(read_data()==r);
 }
 
+struct Climb_situation{
+	//l1 is assumed to always be available.
+	bool l2_available,l3_available;
+};
+
+std::ostream& operator<<(std::ostream& o,Climb_situation const& a){
+	o<<"Climb_situation(l2:"<<a.l2_available<<",l3:"<<a.l3_available<<")";
+	return o;
+}
+
+bool operator<(Climb_situation a,Climb_situation b){
+	if(a.l2_available<b.l2_available) return 1;
+	if(b.l2_available<a.l2_available) return 0;
+	return a.l3_available<b.l3_available;
+}
+
+vector<Climb_situation> climb_situations(){
+	return mapf(
+		[](auto p){
+			return Climb_situation{p.first,p.second};
+		},
+		cross(bools(),bools())
+	);
+}
+
+//using Climb_result_ext=pair<Climb_situation,Climb_result>;
+
+//std::array<Climb_situation,3> demangle_climb_result(std::array<Climb_result,3> in){
+vector<Climb_situation> demangle_climb_result(vector<Climb_result> in){
+	//initially not worrying about buddy climbs
+	auto l2_used=filter([](auto x){ return x==Climb_type::P6; },in).size();
+	auto l3_used=filter([](auto x){ return x==Climb_type::P12; },in).size();
+	return mapf(
+		[=](Climb_result x){
+			return Climb_situation{
+				l2_used<2 || x==Climb_type::P6,
+				l3_used<1 || x==Climb_type::P12
+			};
+		},
+		in
+	);
+}
+
+auto match(Robot_match_data a){
+	return a.match;
+}
+
+auto alliance_id(Robot_match_data a){
+	return make_pair(a.match,a.alliance);
+}
+
+auto climb_result(Robot_match_data a){
+	return a.climb;
+}
+
+struct Climb_odds{
+	float l1,l2,l3; //0-1 (if no data, then this should come out as 0 instead of NaN)
+};
+
+std::ostream& operator<<(std::ostream& o,Climb_odds const& a){
+	o<<"Climb_odds(";
+	o<<"l1:"<<a.l1<<" ";
+	o<<"l2:"<<a.l2<<" ";
+	o<<"l3:"<<a.l3;
+	return o<<")";
+}
+
+map<Team,Climb_odds> show_climb_summary(Scouting_data d){
+	/*
+	Note: The odds that this returns do not add up to 100% becuase they are odds of things happening under different circumstances.
+	So for example, it would be possible to return (0,1,1), which would mean that a team climbs L3 anytime it's open and otherwise 
+	climbs to L2.
+	*/
+	map<Team,map<Climb_situation,multiset<Climb_result>>> by_team;
+	for(auto [id,data]:group(alliance_id,d)){
+		//(what do we mark things as if the robot is a no-show? -> hopefully just a blank sheet)
+		auto d=demangle_climb_result(mapf(climb_result,data));
+
+		/*print_r(data);
+		print_r(d);
+		cout<<"\n";*/
+
+		for(auto [data_point,situation]:zip(data,d)){
+			by_team[data_point.team][situation]|=data_point.climb;
+		}
+	}
+	print_r(by_team);
+	//l3 odds given open
+	//l2 odds given open and did not go for l3
+	return map_values(
+		[](auto data){
+			auto l1_total=filter(
+				[](auto x){ return x!=Climb_type::P6 && x!=Climb_type::P12; },
+				flatten(values(data))
+			);
+			auto l1_used=filter([](auto x){ return x==Climb_type::P3; },l1_total);
+
+			auto l2_total=filter([](auto x){ return x!=Climb_type::P12; },data[Climb_situation{1,1}])+data[Climb_situation{1,0}];
+			auto l2_used=filter([](auto x){ return x==Climb_type::P6; },l2_total);
+
+			auto l3_total=data[Climb_situation{0,1}]+data[Climb_situation{1,1}];
+			auto l3_used=filter([](auto x){ return x==Climb_type::P12; },l3_total);
+
+			auto f=[](auto a,auto b)->float{
+				auto as=a.size();
+				auto bs=b.size();
+				if(bs==0) return 0;
+				return (0.0+as)/bs;
+			};
+			return Climb_odds{
+				f(l1_used,l1_total),f(l2_used,l2_total),f(l3_used,l3_total)
+			};
+		},
+		by_team
+	);
+}
+
 map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 	//this is where the sausage is made
+
+	show_climb_summary(d);
 
 	map<Team,Robot_capabilities> r;
 	for(auto [team,data]:group([](auto x){ return x.team; },d)){
