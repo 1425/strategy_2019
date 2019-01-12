@@ -528,4 +528,77 @@ void print_r(T t){
 	print_r(0,t);
 }
 
+template<typename T>
+std::set<T> to_set(std::vector<T> const& v){
+	return std::set<T>(begin(v),end(v));
+}
+
+template<typename T,size_t LEN>
+std::array<T,LEN> sorted(std::array<T,LEN> a){
+	std::sort(begin(a),end(a));
+	return a;
+}
+
+template<typename T>
+std::set<T> choose(size_t num,std::set<T> a){
+	if(num==0){
+		return {};
+	}
+	assert(a.size());
+	auto other=choose(num-1,a);
+	auto left=filter([other](auto x){ return other.count(x)==0; },a);
+	return other|std::set<T>{to_vec(left)[rand()%left.size()]};
+}
+
+template<typename T1,typename T2>
+std::vector<T1>& operator|=(std::vector<T1>& a,std::vector<T2> const& b){
+	for(auto elem:b){
+		a|=elem;
+	}
+	return a;
+}
+
+template<typename T>
+std::set<T>& operator-=(std::set<T> &a,T const& t){
+	auto it=a.find(t);
+	if(it!=a.end()){
+		a.erase(it);
+	}
+	return a;
+}
+
+template<typename T,typename T2>
+std::set<T>& operator-=(std::set<T> &a,T2 b){
+	auto it=a.find(T{b});
+	if(it!=a.end()){
+		a.erase(it);
+	}
+	return a;
+}
+
+template<typename T>
+std::set<T>& operator-=(std::set<T> &a,std::set<T> const& b){
+	for(auto elem:b){
+		a-=elem;
+	}
+	return a;
+}
+
+std::vector<std::string> split(std::string const& s,char target){
+	std::vector<std::string> r;
+	std::stringstream ss;
+	for(auto c:s){
+		if(c==target){
+			r|=ss.str();
+			ss.str("");
+		}else{
+			ss<<c;
+		}
+	}
+	if(ss.str().size()){
+		r|=ss.str();
+	}
+	return r;
+}
+
 #endif

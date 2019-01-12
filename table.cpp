@@ -2,62 +2,6 @@
 #include<sys/stat.h>
 #include "util.h"
 
-template<typename T>
-std::set<T> to_set(std::vector<T> v){
-	return std::set<T>(begin(v),end(v));
-}
-
-template<typename T,size_t LEN>
-std::array<T,LEN> sorted(std::array<T,LEN> a){
-	std::sort(begin(a),end(a));
-	return a;
-}
-
-template<typename T>
-std::set<T> choose(size_t num,std::set<T> a){
-	if(num==0){
-		return {};
-	}
-	assert(a.size());
-	auto other=choose(num-1,a);
-	auto left=filter([other](auto x){ return other.count(x)==0; },a);
-	return other|std::set<T>{to_vec(left)[rand()%left.size()]};
-}
-
-template<typename T1,typename T2>
-std::vector<T1>& operator|=(std::vector<T1>& a,std::vector<T2> const& b){
-	for(auto elem:b){
-		a|=elem;
-	}
-	return a;
-}
-
-template<typename T>
-std::set<T>& operator-=(std::set<T> &a,T t){
-	auto it=a.find(t);
-	if(it!=a.end()){
-		a.erase(it);
-	}
-	return a;
-}
-
-template<typename T,typename T2>
-std::set<T>& operator-=(std::set<T> &a,T2 b){
-	auto it=a.find(T{b});
-	if(it!=a.end()){
-		a.erase(it);
-	}
-	return a;
-}
-
-template<typename T>
-std::set<T>& operator-=(std::set<T> &a,std::set<T> b){
-	for(auto elem:b){
-		a-=elem;
-	}
-	return a;
-}
-
 //start program-specific functions
 
 using namespace std;
@@ -639,14 +583,14 @@ int points(Alliance_capabilities const& cap){
 static const int TOURNAMENT_SIZE=30; //old cmp division size
 //TODO: Try out with fewer than 24 teams.
 
-string to_csv(Scouting_data data){
+string to_csv(Scouting_data const& data){
 	stringstream ss;
 	#define X(A,B,C) ss<<""#B<<",";
 	ROBOT_MATCH_DATA_ITEMS(X)
 	#undef X
 	ss<<"\n";
 	//ss<<"team,match,balls,hatches,climb\n";
-	for(auto d:data){
+	for(auto const& d:data){
 		#define X(A,B,C) ss<<d.B<<",";
 		ROBOT_MATCH_DATA_ITEMS(X)
 		#undef X
@@ -654,23 +598,6 @@ string to_csv(Scouting_data data){
 		//ss<<d.team<<","<<d.match<<","<<d.balls<<","<<d.hatches<<","<<d.climb<<"\n";
 	}
 	return ss.str();
-}
-
-vector<string> split(string s,char target){
-	vector<string> r;
-	stringstream ss;
-	for(auto c:s){
-		if(c==target){
-			r|=ss.str();
-			ss.str("");
-		}else{
-			ss<<c;
-		}
-	}
-	if(ss.str().size()){
-		r|=ss.str();
-	}
-	return r;
 }
 
 int parse(const int*,std::string s){
@@ -832,7 +759,7 @@ map<Team,Climb_odds> show_climb_summary(Scouting_data d){
 	climbs to L2.
 	*/
 	map<Team,map<Climb_situation,multiset<Climb_result>>> by_team;
-	for(auto [id,data]:group(alliance_id,d)){
+	for(auto data:values(group(alliance_id,d))){
 		//(what do we mark things as if the robot is a no-show? -> hopefully just a blank sheet)
 		auto d=demangle_climb_result(mapf(climb_result,data));
 
@@ -891,7 +818,7 @@ map<Team,float> interpret_shelf(Scouting_data d){
 
 	//basically, this is just doing the same thing as for the climb at the end of the game
 	map<Team,multiset<bool>> by_team;
-	for(auto [id,data]:group(alliance_id,d)){
+	for(auto data:values(group(alliance_id,d))){
 		auto open_space=filter([](auto x){ return x.shelf; },data).size()<2;
 		for(auto data_point:data){
 			auto available=open_space || data_point.shelf;
