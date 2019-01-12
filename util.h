@@ -204,6 +204,11 @@ std::multiset<T> filter(Func f,std::multiset<T> const& t){
 	return r;
 }
 
+template<typename T>
+T id(T t){ return t; }
+
+#define FILTER(F,X) filter([&](auto x){ return F(x); },X)
+
 template<typename Func,typename T>
 auto mapf(Func f,std::vector<T> v) -> std::vector< decltype(f(v[0])) > {
 	std::vector<decltype(f(v[0]))> r(v.size());
@@ -226,6 +231,11 @@ auto mapf(Func f,std::array<T,LEN> v) -> std::array< decltype(f(v[0])) , LEN> {
 }
 
 #define MAP(F,V) mapf([&](auto elem){ return F(elem); },V)
+
+template<typename T>
+class Nonempty_vector{
+	std::vector<T> data;
+};
 
 template<typename T>
 T max(std::vector<T> const& a){
@@ -341,11 +351,6 @@ std::vector<std::pair<size_t,T>> enumerate_from(size_t i,std::vector<T> const& a
 	}
 	return r;
 }
-
-template<typename T>
-T id(T t){ return t; }
-
-#define FILTER(F,X) filter([&](auto x){ return F(x); },X)
 
 template<typename Func,typename T>
 T take_first(Func f,std::multiset<T> m){

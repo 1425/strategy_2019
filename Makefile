@@ -1,7 +1,7 @@
-CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -O2 -pg
+CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -Ofast -flto
 
 test: table
-	./table --strategy
+	time ./table --strategy
 
 .PHONY: clean
 clean:

@@ -2,9 +2,69 @@
 #include<sys/stat.h>
 #include "util.h"
 
+template<typename T>
+std::set<T> to_set(std::vector<T> v){
+	return std::set<T>(begin(v),end(v));
+}
+
+template<typename T,size_t LEN>
+std::array<T,LEN> sorted(std::array<T,LEN> a){
+	std::sort(begin(a),end(a));
+	return a;
+}
+
+template<typename T>
+std::set<T> choose(size_t num,std::set<T> a){
+	if(num==0){
+		return {};
+	}
+	assert(a.size());
+	auto other=choose(num-1,a);
+	auto left=filter([other](auto x){ return other.count(x)==0; },a);
+	return other|std::set<T>{to_vec(left)[rand()%left.size()]};
+}
+
+template<typename T1,typename T2>
+std::vector<T1>& operator|=(std::vector<T1>& a,std::vector<T2> const& b){
+	for(auto elem:b){
+		a|=elem;
+	}
+	return a;
+}
+
+template<typename T>
+std::set<T>& operator-=(std::set<T> &a,T t){
+	auto it=a.find(t);
+	if(it!=a.end()){
+		a.erase(it);
+	}
+	return a;
+}
+
+template<typename T,typename T2>
+std::set<T>& operator-=(std::set<T> &a,T2 b){
+	auto it=a.find(T{b});
+	if(it!=a.end()){
+		a.erase(it);
+	}
+	return a;
+}
+
+template<typename T>
+std::set<T>& operator-=(std::set<T> &a,std::set<T> b){
+	for(auto elem:b){
+		a-=elem;
+	}
+	return a;
+}
+
 //start program-specific functions
 
 using namespace std;
+
+/*
+probability of winning based on different likelyhood of different types of robot
+*/
 
 static const int SPACES=8+6*2;
 static const int NULL_HATCHES=6;
@@ -34,18 +94,47 @@ Climb_type rand(const Climb_type*){
 	}
 }
 
+vector<Climb_type> climb_types(){
+	return {
+		Climb_type::P3,
+		Climb_type::P6,
+		Climb_type::P12
+	};
+}
+
+struct Climb_odds{
+	float l1,l2,l3; //0-1 (if no data, then this should come out as 0 instead of NaN)
+};
+
+bool operator<(Climb_odds a,Climb_odds b){
+	#define X(A) if(a.A<b.A) return 1; if(b.A<a.A) return 0;
+	X(l1) X(l2) X(l3)
+	#undef X
+	return 0;
+}
+
+std::ostream& operator<<(std::ostream& o,Climb_odds const& a){
+	o<<"Climb_odds(";
+	o<<"l1:"<<a.l1<<" ";
+	o<<"l2:"<<a.l2<<" ";
+	o<<"l3:"<<a.l3;
+	return o<<")";
+}
+
+Climb_odds rand(const Climb_odds*)nyi
+
 #define ROBOT_CAPABILITIES_ITEMS(X)\
-	X(Climb_type,climb_type,Climb_type::P3)\
-	X(float,climb_time,TELEOP_LENGTH+1)\
+	X(float,shelf_odds,0)\
+	X(Climb_odds,climb,Climb_odds{})\
 	X(float,ball_time,TELEOP_LENGTH+1)\
 	X(float,hatch_time,TELEOP_LENGTH+1)
 
 struct Robot_capabilities{
 	//by default, can do almost nothing.
-	Climb_type climb_type=Climb_type::P3;
 	//all the times are assumed to be >0.
-	float climb_time=TELEOP_LENGTH+1;
-	float ball_time=TELEOP_LENGTH+1,hatch_time=TELEOP_LENGTH+1;
+	#define X(A,B,C) A B=C;
+	ROBOT_CAPABILITIES_ITEMS(X)
+	#undef X
 };
 
 bool operator<(Robot_capabilities const& a,Robot_capabilities const& b){
@@ -55,19 +144,9 @@ bool operator<(Robot_capabilities const& a,Robot_capabilities const& b){
 	return 0;
 }
 
-/*
-asignments for robots based on their capabilities
-how long for them to climb?
-first pass, assume that going to be able to get 
-
-probability of winning based on different likelyhood of different types of robot
-
-it was field vs balls time being spent
-*/
-
 std::ostream& operator<<(std::ostream& o,Robot_capabilities const& a){
 	o<<"Robot_capabilities(";
-	o<<"climb:"<<a.climb_type<<" "<<a.climb_time<<" ";
+	o<<"climb:"<<a.climb<<" ";
 	o<<"ball_time:"<<a.ball_time<<" ";
 	o<<"hatch_time:"<<a.hatch_time;
 	return o<<")";
@@ -75,8 +154,7 @@ std::ostream& operator<<(std::ostream& o,Robot_capabilities const& a){
 
 Robot_capabilities rand(const Robot_capabilities*){
 	Robot_capabilities r;
-	r.climb_type=rand((Climb_type*)nullptr);
-	r.climb_time=1+rand()%30;
+	r.climb=rand((Climb_odds*)nullptr);
 	r.ball_time=1+rand()%100;
 	r.hatch_time=1+rand()%100;
 	return r;
@@ -87,10 +165,20 @@ using Alliance_capabilities=std::array<Robot_capabilities,3>;
 using Balls=int;
 using Hatches=int;
 
+using Climb_result=std::optional<Climb_type>;
+
+vector<Climb_result> climb_results(){
+	vector<Climb_result> r;
+	r|=climb_types();
+	r|=Climb_result{};
+	return r;
+}
+
+//TODO: Add shelf
 #define ROBOT_STRATEGY_ITEMS(X)\
 	X(Balls,balls)\
 	X(Hatches,hatches)\
-	X(bool,climb)
+	X(Climb_result,climb)
 
 #define INST(A,B) A B;
 
@@ -111,12 +199,34 @@ bool operator<(Robot_strategy const& a,Robot_strategy const& b){
 	return 0;
 }
 
+float odds(Climb_odds odds,Climb_type type){
+	switch(type){
+		case Climb_type::P3:
+			return odds.l1;
+		case Climb_type::P6:
+			return odds.l2;
+		case Climb_type::P12:
+			return odds.l3;
+		default:
+			assert(0);
+	}
+}
+
+vector<Climb_result> climb_capabilities(Robot_capabilities const& capabilities){
+	return filter(
+		[=](auto climb_result)->bool{
+			if(!climb_result) return 1;
+			return odds(capabilities.climb,*climb_result)>0;
+		},
+		climb_results()
+	);
+}
+
 vector<Robot_strategy> available_strategies(Robot_capabilities const& capabilities){
 	vector<Robot_strategy> r;
-	auto climb_available=capabilities.climb_time<TELEOP_LENGTH;
-	auto climb_options=climb_available?vector<bool>{{0,1}}:vector<bool>{{0}};
-	for(auto climb:climb_options){
-		auto remaining_time=TELEOP_LENGTH-capabilities.climb_time;
+	for(auto climb:climb_capabilities(capabilities)){
+		static const int CLIMB_TIME=20;
+		auto remaining_time=TELEOP_LENGTH-(climb?CLIMB_TIME:0);
 		unsigned max_hatches=remaining_time/capabilities.hatch_time;
 		for(auto hatches:range(1+max_hatches)){
 			auto time_for_balls=remaining_time-hatches*capabilities.hatch_time;
@@ -138,6 +248,54 @@ vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 			}
 		}
 	}
+
+	/*
+	Spit into 3 sections:
+	initial
+	main
+	final
+
+	then combine the results of the three
+	*/
+
+	/*using Shelf=std::array<bool,3>;
+	vector<Shelf> shelf;
+	for(auto a:bools()){
+		for(auto b:bools()){
+			for(auto c:bools()){
+				shelf|={a,b,c};
+			}
+		}
+	}*/
+	//std::array<int,3> shelf_strats{{0,1,2}}; //which robot to leave down
+	//one that's assigned to be up could always just not use the slot
+
+	/*std::vector<array<Climb_result,3>> climb_strats;
+	auto ccap=mapf(climb_capabilities,a);
+	for(auto a:ccap[0]){
+		auto b_opt=to_set(ccap[1]);
+		b_opt-=((a==Climb_type::P12)?set<Climb_result>{Climb_type::P12}:set<Climb_result>{});
+		for(auto b:b_opt){
+			auto c_opt=to_set(ccap[2]);
+			if(a==Climb_type::P12 || b==Climb_type::P12){
+				c_opt-=set<Climb_result>{Climb_type::P12};
+			}
+			if(a==Climb_type::P6 && b==Climb_type::P6){
+				c_opt-=Climb_type::P6;
+			}
+			for(auto c:c_opt){
+				climb_strats|=std::array<Climb_result,3>{{a,b,c}};
+			}
+		}
+	}
+	PRINT(climb_strats);*/
+
+	/*for(auto shelf:shelf_strats){ //could make this one be the inner-most since it is independent of the others
+		for(auto climb:climb_strats){
+			nyi
+		}
+	}*/
+
 	return r;
 }
 
@@ -160,29 +318,26 @@ int marginal_hatch(int balls,int hatches){
 template<typename Func,typename Colorizer>
 void run(string filename,string title,Func f,Colorizer color){
 	stringstream ss;
-	ss<<tag(
-		"tr",
+	ss<<tr(
 		tag("td colspan=2 rowspan=2","")+
 		tag("th colspan="+as_string(SPACES+1),"Hatches")
 	);
-	ss<<tag(
-		"tr",
+	ss<<tr(
 		[](){
 			stringstream ss;
 			for(auto balls:range_st<SPACES+1>()){
-				ss<<tag("th",balls);
+				ss<<th(balls);
 			}
 			return ss.str();
 		}()
 	);
 	for(auto balls:range_st<SPACES+1>()){
 		stringstream s2;
-		s2<<tag("th",as_string(balls));
+		s2<<th(balls);
 		for(auto hatches:range_st<SPACES+1>()){
 			s2<<tag("td "+color(balls,hatches),f(balls,hatches));
 		}
-		ss<<tag(
-			"tr",
+		ss<<tr(
 			[&]()->string{
 				if(balls==0){
 					return tag("th rowspan="+as_string(SPACES+1),"Balls");
@@ -204,14 +359,12 @@ void run(string filename,string title,Func f,Colorizer color){
 	}
 
 	write_file("output/"+filename,
-		tag(
-			"html",
-			tag("head",
+		html(
+			head(
 				tag("title",title)
 			)+
-			tag(
-				"body",
-				tag("h1",title)+
+			body(
+				h1(title)+
 				tag("table border",ss.str())
 			)
 		)
@@ -301,21 +454,40 @@ int by_pieces(){
 	return 0;
 }
 
+Climb_type max_odds_type(Climb_odds a){
+	if(a.l1>a.l2 && a.l3) return Climb_type::P3;
+	if(a.l2>a.l3) return Climb_type::P6;
+	return Climb_type::P12;
+}
+
+int points(Climb_type a){
+	switch(a){
+		case Climb_type::P3: return 3;
+		case Climb_type::P6: return 6;
+		case Climb_type::P12: return 12;
+		default: assert(0);
+	}
+}
+
+int points(Climb_result a){
+	if(!a){ return 0; }
+	return points(*a);
+}
+
 int points(Alliance_capabilities cap,Alliance_strategy strat){
 	auto balls=sum(mapf([](auto a){ return a.balls; },strat));
 	auto hatches=sum(mapf([](auto a){ return a.hatches; },strat));
 	auto p=points(balls,hatches);
+
+	//TODO: Make this more precise.
 	auto c=sum(mapf(
-		[](auto p){
+		[](auto p)->float{
 			if(!p.second.climb){
 				return 0;
 			}
-			switch(p.first.climb_type){
-				case Climb_type::P3: return 3;
-				case Climb_type::P6: return 6;
-				case Climb_type::P12: return 12;
-				default: assert(0);
-			}
+			auto type_odds=odds(p.first.climb,*p.second.climb);
+			auto type_points=points(p.second.climb);
+			return type_odds*type_points;
 		},
 		zip(cap,strat)
 	));
@@ -329,7 +501,6 @@ Team rand(const Team*){
 }
 
 using Match=int;//initially, assume that these are all qual match numbers.
-using Climb_result=std::optional<Climb_type>;
 
 template<typename T>
 std::optional<T> rand(const std::optional<T>*){
@@ -340,7 +511,6 @@ std::optional<T> rand(const std::optional<T>*){
 	return r; //not sure why g++ was warning about returning in one step here.
 }
 
-//using Alliance=int;
 enum class Alliance{RED,BLUE};
 
 std::ostream& operator<<(std::ostream& o,Alliance a){
@@ -364,6 +534,7 @@ Alliance parse(const Alliance*,string const& s){
 	X(Team,team,0)\
 	X(Match,match,0)\
 	X(Alliance,alliance,{})\
+	X(bool,shelf,0)\
 	X(unsigned,balls,0)\
 	X(unsigned,hatches,0)\
 	X(Climb_result,climb,{})
@@ -375,12 +546,10 @@ struct Robot_match_data{
 };
 
 std::ostream& operator<<(std::ostream& o,Robot_match_data const& a){
-	o<<"Robot_match_data(";
-	o<<"team:"<<a.team<<" ";
-	o<<"match:"<<a.match<<" ";
-	o<<"balls:"<<a.balls<<" ";
-	o<<"hatches:"<<a.hatches<<" ";
-	o<<"climb:"<<a.climb<<" ";
+	o<<"Robot_match_data( ";
+	#define X(A,B,C) o<<""#B<<":"<<a.B<<" ";
+	ROBOT_MATCH_DATA_ITEMS(X)
+	#undef X
 	return o<<")";
 }
 
@@ -393,6 +562,17 @@ bool operator==(Robot_match_data const& a,Robot_match_data const& b){
 
 unsigned rand(const unsigned*){
 	return rand()%22;
+}
+
+bool rand(const bool*){
+	return rand()%2;
+}
+
+bool parse(const bool*,string s){
+	if(s=="0") return 0;
+	if(s=="1") return 1;
+	PRINT(s);
+	nyi
 }
 
 Robot_match_data rand(const Robot_match_data*){
@@ -435,17 +615,6 @@ Alliance_strategy normalize(Alliance_strategy a){
 	return a;
 }
 
-template<typename T>
-set<T> to_set(vector<T> v){
-	return std::set<T>(begin(v),end(v));
-}
-
-template<typename T,size_t LEN>
-std::array<T,LEN> sorted(std::array<T,LEN> a){
-	std::sort(begin(a),end(a));
-	return a;
-}
-
 static map<Alliance_capabilities,int> cache;
 
 int points(Alliance_capabilities const& cap){
@@ -458,6 +627,7 @@ int points(Alliance_capabilities const& cap){
 	//auto as=to_set(mapf(normalize,available_strategies(cap)));
 	//auto as=to_set(available_strategies(cap));
 	auto as=available_strategies(cap);
+	assert(as.size());
 	//put in a filter here to only look at the ones that have the possiblity to be the best?
 
 	auto m=mapf([=](auto x){ return points(cap,x); },as);
@@ -468,17 +638,6 @@ int points(Alliance_capabilities const& cap){
 
 static const int TOURNAMENT_SIZE=30; //old cmp division size
 //TODO: Try out with fewer than 24 teams.
-
-template<typename T>
-set<T> choose(size_t num,set<T> a){
-	if(num==0){
-		return {};
-	}
-	assert(a.size());
-	auto other=choose(num-1,a);
-	auto left=filter([other](auto x){ return other.count(x)==0; },a);
-	return other|set<T>{to_vec(left)[rand()%left.size()]};
-}
 
 string to_csv(Scouting_data data){
 	stringstream ss;
@@ -531,7 +690,10 @@ Climb_type parse(const Climb_type*,std::string s){
 
 Climb_result parse(const Climb_result*,std::string s){
 	if(s=="NULL"){
-		return Climb_result{};
+		//Not sure why the first line was generating a warning at high optimization levels.
+		//return Climb_result{};
+		Climb_result r;
+		return r;
 	}
 	return parse((Climb_type*)nullptr,s);
 }
@@ -550,7 +712,14 @@ Scouting_data read_data(){
 	assert(f.good());
 	string s;
 	getline(f,s);
-	assert(s=="team,match,alliance,balls,hatches,climb,");
+	{
+		stringstream ss;
+		#define X(A,B,C) ss<<""#B<<",";
+		ROBOT_MATCH_DATA_ITEMS(X)
+		#undef X
+		assert(s==ss.str());
+		//assert(s=="team,match,alliance,balls,hatches,climb,");
+	}
 	Scouting_data r;
 	while(f.good()){
 		getline(f,s);
@@ -563,12 +732,8 @@ Scouting_data read_data(){
 			#define X(A,B,C) parse((A*)nullptr,pop(sp)),
 			ROBOT_MATCH_DATA_ITEMS(X)
 			#undef X
-			/*parse((Team*)nullptr,sp[0]),
-			parse((Match*)nullptr,sp[1]),
-			parse((unsigned*)nullptr,sp[2]),
-			parse((unsigned*)nullptr,sp[3]),
-			parse((Climb_result*)nullptr,sp[4])*/
 		};
+		assert(sp.empty());
 	}
 	return r;
 }
@@ -660,18 +825,6 @@ auto climb_result(Robot_match_data a){
 	return a.climb;
 }
 
-struct Climb_odds{
-	float l1,l2,l3; //0-1 (if no data, then this should come out as 0 instead of NaN)
-};
-
-std::ostream& operator<<(std::ostream& o,Climb_odds const& a){
-	o<<"Climb_odds(";
-	o<<"l1:"<<a.l1<<" ";
-	o<<"l2:"<<a.l2<<" ";
-	o<<"l3:"<<a.l3;
-	return o<<")";
-}
-
 map<Team,Climb_odds> show_climb_summary(Scouting_data d){
 	/*
 	Note: The odds that this returns do not add up to 100% becuase they are odds of things happening under different circumstances.
@@ -691,7 +844,7 @@ map<Team,Climb_odds> show_climb_summary(Scouting_data d){
 			by_team[data_point.team][situation]|=data_point.climb;
 		}
 	}
-	print_r(by_team);
+	//print_r(by_team);
 	//l3 odds given open
 	//l2 odds given open and did not go for l3
 	return map_values(
@@ -722,10 +875,40 @@ map<Team,Climb_odds> show_climb_summary(Scouting_data d){
 	);
 }
 
+size_t sum(multiset<bool> const& m){
+	return FILTER(id,m).size();
+}
+
+float mean(multiset<bool> const& m){
+	assert(m.size());
+	return (0.0+sum(m))/m.size();
+}
+
+#define MAP_VALUES(f,v) map_values([&](auto x){ return f(x); },v)
+
+map<Team,float> interpret_shelf(Scouting_data d){
+	//returns the odds that go on a shelf to start the game given that there is the opportunity to do so
+
+	//basically, this is just doing the same thing as for the climb at the end of the game
+	map<Team,multiset<bool>> by_team;
+	for(auto [id,data]:group(alliance_id,d)){
+		auto open_space=filter([](auto x){ return x.shelf; },data).size()<2;
+		for(auto data_point:data){
+			auto available=open_space || data_point.shelf;
+			if(available){
+				by_team[data_point.team]|=data_point.shelf;
+			}
+		}
+	}
+	
+	return MAP_VALUES(mean,by_team);
+}
+
 map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 	//this is where the sausage is made
 
-	show_climb_summary(d);
+	auto climbing=show_climb_summary(d);
+	auto shelf=interpret_shelf(d);
 
 	map<Team,Robot_capabilities> r;
 	for(auto [team,data]:group([](auto x){ return x.team; },d)){
@@ -759,8 +942,10 @@ map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 		float ball_time=mean(ball_times);
 		float hatch_time=mean(hatch_times);
 		r[team]=Robot_capabilities{
-			climbs.size()?mode(climbs):Climb_type::P3,
-			ENDGAME_USED,//climb_time
+			shelf[team],
+			//climbs.size()?mode(climbs):Climb_type::P3,
+			//ENDGAME_USED,//climb_time
+			climbing[team],
 			ball_time,
 			hatch_time
 		};
@@ -784,14 +969,25 @@ int by_alliance(){
 				tag("table border",
 					tr(join(mapf(
 						th1,
-						vector<string>{"Team number","Climb type","Climb time","Ball time(s)","Hatch time (s)"}
+						vector<string>{
+							"Team number","P(shelf)",
+							"P(Climb L1)","P(Climb L2)","P(Climb L3)",
+							"Ball time(s)","Hatch time (s)"
+							/*#define X(A,B,C) ""#B,
+							ROBOT_CAPABILITIES_ITEMS(X)
+							#undef X*/
+						}
 					)))+
 					join(mapf(
 						[](auto p){
 							auto [team,cap]=p;
 							return tr(
-								td(team)+
-								td(cap.climb_type)+td(cap.climb_time)+td(cap.ball_time)+td(cap.hatch_time)
+								td(team)+td(cap.shelf_odds)+
+								td(cap.climb.l1)+td(cap.climb.l2)+td(cap.climb.l3)+
+								td(cap.ball_time)+td(cap.hatch_time)
+								/*join(vector<string>{
+									#define X(A,B,C) td(cap.
+								})*/
 							);
 						},
 						robots
@@ -892,9 +1088,6 @@ int by_alliance(){
 			)
 		)
 	);
-
-	//TODO: Optimize
-	//TODO: Make the 2d pick table!
 
 	//TODO: Show best strategy for given alliance
 	//TODO: Make a whole tournament work for robots
