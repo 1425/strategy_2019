@@ -45,6 +45,16 @@ std::map<K,V> filter(Func f,std::map<K,V> a){
 	return r;
 }
 
+int atoi(std::string const& s){
+	return atoi(s.c_str());
+}
+
+template<typename T>
+std::vector<T> take(size_t lim,std::vector<T> in){
+	if(in.size()<=lim) return in;
+	return std::vector<T>(begin(in),begin(in)+lim);
+}
+
 using namespace std;
 
 /*
@@ -344,7 +354,17 @@ int points(Climb_result a){
 }
 
 int points(Alliance_capabilities cap,Alliance_strategy strat){
-	//TODO: Shelf points
+	auto shelf_points=sum(mapf(
+		[](auto p)->float{
+			//[](Robot_capabilities rc,Robot_strategy rs)->float{
+			auto [rc,rs]=p;
+			if(rs.shelf){
+				return 3+3*rc.shelf_odds;
+			}
+			return 3; //just assume that Sandstorm Bonus 1 will be scored.
+		},
+		zip(cap,strat)
+	));
 
 	auto balls=sum(mapf([](auto a){ return a.balls; },strat));
 	auto hatches=sum(mapf([](auto a){ return a.hatches; },strat));
@@ -361,7 +381,7 @@ int points(Alliance_capabilities cap,Alliance_strategy strat){
 		},
 		zip(cap,strat)
 	));
-	return p+climb_points;
+	return shelf_points+p+climb_points;
 }
 
 using Team=int;//official season; all the teams will have real numbers.
@@ -506,9 +526,6 @@ int points(Alliance_capabilities const& cap){
 	return r;
 }
 
-static const int TOURNAMENT_SIZE=75; //old cmp division size
-//TODO: Try out with fewer than 24 teams.
-
 string to_csv(Scouting_data const& data){
 	stringstream ss;
 	#define X(A,B,C) ss<<""#B<<",";
@@ -593,6 +610,7 @@ Scouting_data read_data(){
 
 Scouting_data example_input(){
 	set<Team> teams;
+	static const int TOURNAMENT_SIZE=75; //old cmp division size
 	for(auto _:range(TOURNAMENT_SIZE)){
 		(void)_;
 		Team team;
@@ -757,6 +775,14 @@ map<Team,float> interpret_shelf(Scouting_data d){
 	return MAP_VALUES(mean,by_team);
 }
 
+template<typename T>
+T mean_else(vector<T> v,T t){
+	if(v.size()){
+		return mean(v);
+	}
+	return t;
+}
+
 map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 	//this is where the sausage is made
 
@@ -792,8 +818,8 @@ map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 				hatch_times|=penalty;
 			}
 		}
-		float ball_time=mean(ball_times);
-		float hatch_time=mean(hatch_times);
+		float ball_time=mean_else(ball_times,teleop_length()+1.0f);
+		float hatch_time=mean_else(hatch_times,teleop_length()+1.0f);
 		r[team]=Robot_capabilities{
 			shelf[team],
 			//climbs.size()?mode(climbs):Climb_type::P3,
@@ -808,9 +834,28 @@ map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 
 string th1(string s){ return th(s); }
 
-int by_alliance(){
+int by_alliance(vector<string> args){
+	Team target_team;
+	switch(args.size()){
+		case 0:
+			target_team=1425;
+			break;
+		case 1:
+			target_team=atoi(args[0]);
+			break;
+		default:
+			cerr<<"Error: Unexpected arguments";
+			return 1;
+	}
+
 	csv_test();
 	auto robots=interpret_data(example_input());
+
+	assert(robots.size());
+	if(robots.count(target_team)!=1){
+		cout<<"Warning: Did not find team "<<target_team<<".  Will create a dummy entry for them and continue.\n";
+		robots[target_team]={};
+	}
 
 	auto t2="Robot capabilities";
 	write_file(
@@ -824,7 +869,9 @@ int by_alliance(){
 						th1,
 						vector<string>{
 							"Team number","P(shelf)",
-							"P(Climb L1)","P(Climb L2)","P(Climb L3)",
+							"P(Climb L1) | (not L2 or L3)",
+							"P(Climb L2) | (available & !L3)",
+							"P(Climb L3) | available",
 							"Ball time(s)","Hatch time (s)"
 							/*#define X(A,B,C) ""#B,
 							ROBOT_CAPABILITIES_ITEMS(X)
@@ -850,14 +897,8 @@ int by_alliance(){
 		)
 	);
 
-	/*map<Team,Robot_capabilities> robots;
-	for(auto team:range(TOURNAMENT_SIZE)){
-		robots[team]=rand((Robot_capabilities*)nullptr);
-	}*/
-	assert(robots.size());
-	auto target_team=begin(robots)->first;//TODO: make it us & configurable
-
 	auto own_cap=robots[target_team];
+	PRINT(own_cap);
 	auto other_teams=without_key(robots,target_team);
 
 	auto first_picks=reversed(sorted(mapf(
@@ -913,10 +954,11 @@ int by_alliance(){
 						tag("th colspan=22","Second pick")
 					)+
 					tr(join(mapf([](auto i){ return th(i); },range(1,1+22))))+
-					//TODO: Put the main body of the table here
 					join(mapf(
-						[&](int i)->string{
-							auto first_pick=first_picks[i].second;
+						[&](auto p)->string{
+							auto [i,first_pick_elem]=p;
+							//auto first_pick=first_picks[i].second;
+							auto first_pick=first_pick_elem.second;
 							return tr(
 								[](){
 									/*if(i==0){
@@ -927,15 +969,16 @@ int by_alliance(){
 								th(i+1)+
 								cell(first_picks[i])+
 								join(mapf(
-									[&](int j){
+									[&](auto d){
 										//return td("2nd pick:"+as_string(i)+" "+as_string(j));
-										return cell(second_pick[first_pick][j]);
+										//return cell(second_pick[first_pick][j]);
+										return cell(d);
 									},
-									range(22)
+									take(22,second_pick[first_pick])
 								))
 							);
 						},
-						range(23)
+						zip(range(23),first_picks)
 					))
 				)
 			)
@@ -948,29 +991,55 @@ int by_alliance(){
 	return 0;
 }
 
+vector<string> args(int argc,char **argv){
+	vector<string> r;
+	for(int i=0;i<argc;i++){
+		r|=argv[i];
+	}
+	return r;
+}
+
+template<typename T>
+vector<T> skip(size_t i,vector<T> v){
+	//note: this is implemented in a very slow way.
+	for(auto _:range(i)){
+		(void)_;
+		if(v.size()){
+			v.erase(v.begin());
+		}
+	}
+	return v;
+}
+
 int main(int argc,char **argv){
-	vector<pair<const char *,std::function<int()>>> options{
-		make_pair("--strategy",by_alliance)
+	vector<tuple<
+		const char *, //name
+		const char *, //arg info
+		const char *, //msg
+		std::function<int(vector<string>)>
+	>> options{
+		make_tuple("--picklist","[team number]","Create picklist for the given team number",by_alliance),
 	};
-	auto help=[&](){
+	auto help=[&](vector<string>){
 		cout<<"Available arguments:\n";
-		for(auto [arg,func]:options){
+		for(auto [arg,arg_info,msg,func]:options){
 			(void)func;
-			cout<<"\t"<<arg<<"\n";
+			cout<<"\t"<<arg<<" "<<arg_info<<"\n";
+			cout<<"\t\t"<<msg<<"\n";
 		}
 		return 0;
 	};
-	options|=make_pair("--help",help);
+	options|=make_tuple("--help","","Display this message",help);
 
-	if(argc!=2){
+	if(argc<2){
 		cout<<"Argument required.\n\n";
-		help();
+		help({});
 		return 1;
 	}
 
-	for(auto [arg,func]:options){
+	for(auto [arg,arg_info,msg,func]:options){
 		if(argv[1]==string(arg)){
-			return func();
+			return func(skip(2,args(argc,argv)));
 		}
 	}
 	cerr<<"Unrecognized argument: \""<<argv[1]<<"\"\n";

@@ -1,7 +1,7 @@
-CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -Ofast -flto
+CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -g
 
 test: table strategy
-	time ./strategy --strategy
+	time ./strategy --picklist
 
 strategy: table.cpp util.cpp
 
