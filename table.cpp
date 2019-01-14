@@ -12,6 +12,10 @@ static const int SPACES=8+6*2;
 static const int NULL_HATCHES=6;
 static const int TELEOP_LENGTH=135;
 
+int teleop_length(){
+	return TELEOP_LENGTH;
+}
+
 int points(unsigned balls,unsigned hatches){
 	int hatch_points=2*min(hatches,SPACES);
 	int ball_spaces_available=min(SPACES,hatches+NULL_HATCHES);

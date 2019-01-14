@@ -65,8 +65,8 @@ Climb_odds rand(const Climb_odds*)nyi
 #define ROBOT_CAPABILITIES_ITEMS(X)\
 	X(float,shelf_odds,0)\
 	X(Climb_odds,climb,Climb_odds{})\
-	X(float,ball_time,TELEOP_LENGTH+1)\
-	X(float,hatch_time,TELEOP_LENGTH+1)
+	X(float,ball_time,teleop_length()+1)\
+	X(float,hatch_time,teleop_length()+1)
 
 struct Robot_capabilities{
 	//by default, can do almost nothing.
@@ -165,7 +165,7 @@ vector<Robot_strategy> available_strategies(Robot_capabilities const& capabiliti
 	vector<Robot_strategy> r;
 	for(auto climb:climb_capabilities(capabilities)){
 		static const int CLIMB_TIME=20;
-		auto remaining_time=TELEOP_LENGTH-(climb?CLIMB_TIME:0);
+		auto remaining_time=teleop_length()-(climb?CLIMB_TIME:0);
 		unsigned max_hatches=remaining_time/capabilities.hatch_time;
 		for(auto hatches:range(1+max_hatches)){
 			auto time_for_balls=remaining_time-hatches*capabilities.hatch_time;
@@ -691,7 +691,7 @@ map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 			auto hatches=match.hatches;
 			auto actions=balls+hatches;
 			if(actions){
-				auto action_time=(0.0+TELEOP_LENGTH-ENDGAME_USED)/actions;
+				auto action_time=(0.0+teleop_length()-ENDGAME_USED)/actions;
 				for(auto _:range(balls)){
 					(void)_;
 					ball_times|=action_time;
@@ -701,7 +701,7 @@ map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 					hatch_times|=action_time;
 				}
 			}else{
-				auto penalty=TELEOP_LENGTH+1; //This is just chosen to be anything that is longer than the match.
+				auto penalty=teleop_length()+1; //This is just chosen to be anything that is longer than the match.
 				ball_times|=penalty;
 				hatch_times|=penalty;
 			}
