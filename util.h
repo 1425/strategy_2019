@@ -73,8 +73,13 @@ std::ostream& operator<<(std::ostream& o,std::pair<A,B> const& a){
 template<typename T>
 std::ostream& operator<<(std::ostream& o,std::vector<T> const& a){
 	o<<"[ ";
+	/*
+	Not sure why this commented part doesn't work sometimes.
 	std::ostream_iterator<T> out_it(o," ");
-	std::copy(begin(a),end(a),out_it);
+	std::copy(begin(a),end(a),out_it);*/
+	for(auto elem:a){
+		o<<elem<<" ";
+	}
 	return o<<"]";
 }
 

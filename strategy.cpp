@@ -3,6 +3,48 @@
 #include "util.h"
 #include "table.h"
 
+template<typename T>
+std::vector<std::tuple<T,T,T>> cross3(std::array<std::vector<T>,3> in){
+	std::vector<std::tuple<T,T,T>> r;
+	for(auto a:in[0]){
+		for(auto b:in[1]){
+			for(auto c:in[2]){
+				r|=make_tuple(a,b,c);
+			}
+		}
+	}
+	return r;
+}
+
+template<typename A,typename B>
+std::pair<A,B> operator+(std::pair<A,B> a,std::pair<A,B> b){
+	return std::make_pair(a.first+b.first,a.second+b.second);
+}
+
+template<typename T>
+T sum(std::tuple<T,T,T> t){
+	return std::get<0>(t)+std::get<1>(t)+std::get<2>(t);
+}
+
+std::vector<std::pair<int,int>> to_vec(std::map<int,int> a){
+	std::vector<std::pair<int,int>> r;
+	for(auto p:a){
+		r|=p;
+	}
+	return r;
+}
+
+template<typename Func,typename K,typename V>
+std::map<K,V> filter(Func f,std::map<K,V> a){
+	std::map<K,V> r;
+	for(auto p:a){
+		if(f(p)){
+			r[p.first]=p.second;
+		}
+	}
+	return r;
+}
+
 using namespace std;
 
 /*
@@ -113,8 +155,8 @@ vector<Climb_result> climb_results(){
 	return r;
 }
 
-//TODO: Add shelf
 #define ROBOT_STRATEGY_ITEMS(X)\
+	X(bool,shelf)\
 	X(Balls,balls)\
 	X(Hatches,hatches)\
 	X(Climb_result,climb)
@@ -161,55 +203,78 @@ vector<Climb_result> climb_capabilities(Robot_capabilities const& capabilities){
 	);
 }
 
+static const int CLIMB_TIME=20;
+
 vector<Robot_strategy> available_strategies(Robot_capabilities const& capabilities){
 	vector<Robot_strategy> r;
-	for(auto climb:climb_capabilities(capabilities)){
-		static const int CLIMB_TIME=20;
-		auto remaining_time=teleop_length()-(climb?CLIMB_TIME:0);
-		unsigned max_hatches=remaining_time/capabilities.hatch_time;
-		for(auto hatches:range(1+max_hatches)){
-			auto time_for_balls=remaining_time-hatches*capabilities.hatch_time;
-			int balls=time_for_balls/capabilities.ball_time;
-			r|=Robot_strategy{balls,(int)hatches,climb};
+	for(auto shelf:{0}){ //TODO: At some point will want to put the option for the shelf here once perf is better.
+		for(auto climb:climb_capabilities(capabilities)){
+			auto remaining_time=teleop_length()-(climb?CLIMB_TIME:0);
+			unsigned max_hatches=remaining_time/capabilities.hatch_time;
+			for(auto hatches:range(1+max_hatches)){
+				auto time_for_balls=remaining_time-hatches*capabilities.hatch_time;
+				int balls=time_for_balls/capabilities.ball_time;
+				r|=Robot_strategy{shelf,balls,(int)hatches,climb};
+			}
 		}
 	}
 	return r;
+}
+
+vector<pair<int,int>> main_strats(Robot_capabilities capabilities,unsigned remaining_time){
+	vector<pair<int,int>> r;
+	unsigned max_hatches=remaining_time/capabilities.hatch_time;
+	for(auto hatches:range(1+max_hatches)){
+		auto time_for_balls=remaining_time-hatches*capabilities.hatch_time;
+		int balls=time_for_balls/capabilities.ball_time;
+		r|=make_pair(balls,(int)hatches);
+	}
+	return r;
+}
+
+vector<pair<int,int>> frontier(vector<pair<int,int>> in){
+	map<int,int> r;
+	for(auto [a,b]:in){
+		a=min(20,a);
+		b=min(20,b);
+		auto f=r.find(a);
+		if(f==r.end()){
+			r[a]=b;
+		}else{
+			f->second=max(f->second,b);
+		}
+	}
+
+	//delete the items where the first element doesn't have any advantage over the next
+	auto f1=filter(
+		[&](auto x){
+			auto [a,b]=x;
+			auto f=r.find(a+1);
+			if(f!=r.end() && f->second==b){
+				return 0;
+			}
+			return 1;
+		},
+		r
+	);
+	return to_vec(f1);
 }
 
 using Alliance_strategy=std::array<Robot_strategy,3>;
 
 vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 	vector<Alliance_strategy> r;
+	/*
+	This is how the options were originally generated.  Creates lots of options that are known to be suboptimal.
 	for(auto r0:available_strategies(a[0])){
 		for(auto r1:available_strategies(a[1])){
 			for(auto r2:available_strategies(a[2])){
 				r|=Alliance_strategy{r0,r1,r2};
 			}
 		}
-	}
-
-	/*
-	Spit into 3 sections:
-	initial
-	main
-	final
-
-	then combine the results of the three
-	*/
-
-	/*using Shelf=std::array<bool,3>;
-	vector<Shelf> shelf;
-	for(auto a:bools()){
-		for(auto b:bools()){
-			for(auto c:bools()){
-				shelf|={a,b,c};
-			}
-		}
 	}*/
-	//std::array<int,3> shelf_strats{{0,1,2}}; //which robot to leave down
-	//one that's assigned to be up could always just not use the slot
 
-	/*std::vector<array<Climb_result,3>> climb_strats;
+	std::vector<array<Climb_result,3>> climb_strats;
 	auto ccap=mapf(climb_capabilities,a);
 	for(auto a:ccap[0]){
 		auto b_opt=to_set(ccap[1]);
@@ -227,14 +292,34 @@ vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 			}
 		}
 	}
-	PRINT(climb_strats);*/
 
-	/*for(auto shelf:shelf_strats){ //could make this one be the inner-most since it is independent of the others
-		for(auto climb:climb_strats){
-			nyi
+	for(auto climb_strat:climb_strats){
+		auto main_by_robot=mapf(
+			[](auto p){
+				auto [climb_strat,robot_cap]=p;
+				auto time_left=teleop_length()-(climb_strat?CLIMB_TIME:0);
+				return main_strats(robot_cap,time_left);
+			},
+			zip(climb_strat,a)
+		);
+		auto c=MAP(sum,cross3(main_by_robot));
+		auto f=frontier(c);
+		for(auto item:f){
+			auto [balls,hatches]=item;
+			for(auto off_shelf:range_st<3>()){
+				//"off_shelf"=which robot to not leave a spot for on level 2 at the start of the match
+
+				r|=Alliance_strategy{
+					//For now, going to put all the balls and hatches on one robot
+					//will not change alliance selection answers, and can be worked
+					//out later if ask this to do in-match strategy.
+					Robot_strategy{off_shelf!=0,balls,hatches,climb_strat[0]},
+					Robot_strategy{off_shelf!=1,0,0,climb_strat[1]},
+					Robot_strategy{off_shelf!=2,0,0,climb_strat[2]}
+				};
+			}
 		}
-	}*/
-
+	}
 	return r;
 }
 
@@ -259,12 +344,13 @@ int points(Climb_result a){
 }
 
 int points(Alliance_capabilities cap,Alliance_strategy strat){
+	//TODO: Shelf points
+
 	auto balls=sum(mapf([](auto a){ return a.balls; },strat));
 	auto hatches=sum(mapf([](auto a){ return a.hatches; },strat));
 	auto p=points(balls,hatches);
 
-	//TODO: Make this more precise.
-	auto c=sum(mapf(
+	auto climb_points=sum(mapf(
 		[](auto p)->float{
 			if(!p.second.climb){
 				return 0;
@@ -275,7 +361,7 @@ int points(Alliance_capabilities cap,Alliance_strategy strat){
 		},
 		zip(cap,strat)
 	));
-	return p+c;
+	return p+climb_points;
 }
 
 using Team=int;//official season; all the teams will have real numbers.
@@ -345,7 +431,7 @@ bool operator==(Robot_match_data const& a,Robot_match_data const& b){
 }
 
 unsigned rand(const unsigned*){
-	return rand()%22;
+	return rand()%9; //was %22.
 }
 
 bool rand(const bool*){
@@ -420,7 +506,7 @@ int points(Alliance_capabilities const& cap){
 	return r;
 }
 
-static const int TOURNAMENT_SIZE=30; //old cmp division size
+static const int TOURNAMENT_SIZE=75; //old cmp division size
 //TODO: Try out with fewer than 24 teams.
 
 string to_csv(Scouting_data const& data){
