@@ -436,6 +436,8 @@ auto map_values(Func f,std::map<K,V> const& in){
 	return r;
 }
 
+#define MAP_VALUES(f,v) map_values([&](auto x){ return f(x); },v)
+
 template<typename K,typename V>
 std::vector<V> values(std::map<K,V> const& a){
 	return mapf([](auto x){ return x.second; },a);
@@ -546,5 +548,86 @@ std::set<T>& operator-=(std::set<T> &a,std::set<T> const& b){
 }
 
 std::vector<std::string> split(std::string const& s,char target);
+
+template<typename T>
+std::vector<std::tuple<T,T,T>> cross3(std::array<std::vector<T>,3> in){
+	std::vector<std::tuple<T,T,T>> r;
+	for(auto a:in[0]){
+		for(auto b:in[1]){
+			for(auto c:in[2]){
+				r|=make_tuple(a,b,c);
+			}
+		}
+	}
+	return r;
+}
+
+template<typename A,typename B>
+std::pair<A,B> operator+(std::pair<A,B> a,std::pair<A,B> b){
+	return std::make_pair(a.first+b.first,a.second+b.second);
+}
+
+template<typename T>
+T sum(std::tuple<T,T,T> t){
+	return std::get<0>(t)+std::get<1>(t)+std::get<2>(t);
+}
+
+template<typename Func,typename K,typename V>
+std::map<K,V> filter(Func f,std::map<K,V> a){
+	std::map<K,V> r;
+	for(auto p:a){
+		if(f(p)){
+			r[p.first]=p.second;
+		}
+	}
+	return r;
+}
+
+template<typename T>
+std::vector<T> take(size_t lim,std::vector<T> in){
+	if(in.size()<=lim) return in;
+	return std::vector<T>(begin(in),begin(in)+lim);
+}
+
+template<typename T>
+T mean_else(std::vector<T> v,T t){
+	if(v.size()){
+		return mean(v);
+	}
+	return t;
+}
+
+template<typename T>
+std::vector<T> skip(size_t i,std::vector<T> v){
+	//note: this is implemented in a very slow way.
+	for(auto _:range(i)){
+		(void)_;
+		if(v.size()){
+			v.erase(v.begin());
+		}
+	}
+	return v;
+}
+
+template<typename A,typename B>
+std::vector<B> seconds(std::vector<std::pair<A,B>> a){
+	return mapf([](auto x){ return x.second; },a);
+}
+
+int atoi(std::string const&);
+std::vector<std::string> args(int argc,char **argv);
+
+template<typename K,typename V>
+std::vector<std::pair<K,V>> to_vec(std::map<K,V> a){
+	std::vector<std::pair<K,V>> r;
+	for(auto p:a){
+		r|=p;
+	}
+	return r;
+}
+
+size_t sum(std::multiset<bool> const&);
+float mean(std::multiset<bool> const&);
+std::string pop(std::vector<std::string>&);
 
 #endif

@@ -82,3 +82,34 @@ std::vector<std::string> split(std::string const& s,char target){
 	}
 	return r;
 }
+
+int atoi(std::string const& s){
+	return atoi(s.c_str());
+}
+
+std::vector<std::string> args(int argc,char **argv){
+	std::vector<std::string> r;
+	for(int i=0;i<argc;i++){
+		r|=argv[i];
+	}
+	return r;
+}
+
+size_t sum(std::multiset<bool> const& m){
+	return FILTER(id,m).size();
+}
+
+float mean(std::multiset<bool> const& m){
+	assert(m.size());
+	return (0.0+sum(m))/m.size();
+}
+
+std::string pop(std::vector<std::string>& v){
+	//warning! this is O(n) and modifies its argument
+	assert(v.size());
+	auto r=v[0];
+	v.erase(v.begin());
+	//PRINT(v);
+	return r;
+}
+

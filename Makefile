@@ -3,7 +3,7 @@ CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -g
 test: table strategy
 	time ./strategy --picklist
 
-strategy: table.cpp util.cpp
+strategy: table.cpp util.cpp climb.cpp
 
 table: util.cpp
 	$(CXX) $(CXXFLAGS) -DTABLE_MAIN $< $@.cpp -o $@
