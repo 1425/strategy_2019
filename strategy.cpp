@@ -818,6 +818,8 @@ int main(int argc,char **argv){
 	}
 
 	for(auto [arg,arg_info,msg,func]:options){
+		(void) arg_info;
+		(void) msg;
 		if(argv[1]==string(arg)){
 			return func(skip(2,args(argc,argv)));
 		}
