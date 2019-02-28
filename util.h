@@ -148,8 +148,8 @@ std::vector<std::pair<A,B>> cross(std::vector<A> const& a,std::vector<B> const& 
 }
 
 template<typename Func,typename T>
-auto group(Func f,std::vector<T> v)->std::map<decltype(f(v[0])),std::vector<T>>{
-	std::map<decltype(f(v[0])),std::vector<T>> r;
+auto group(Func f,T v)->std::map<decltype(f(*begin(v))),T>{
+	std::map<decltype(f(*begin(v))),T> r;
 	for(auto elem:v){
 		r[f(elem)]|=elem;
 	}

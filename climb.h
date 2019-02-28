@@ -19,7 +19,7 @@ using Climb_result=std::optional<Climb_type>;
 std::vector<Climb_result> climb_results();
 int points(Climb_result);
 
-Climb_result parse(const Climb_result*,std::string s);
+Climb_result parse(const Climb_result*,std::string);
 
 #define CLIMB_ODDS_ITEMS(X) \
 	X(l1) X(l2) X(l3)
