@@ -113,3 +113,9 @@ std::string pop(std::vector<std::string>& v){
 	return r;
 }
 
+void indent_by(unsigned int i){
+	for(auto _:range(i)){
+		(void)_;
+		std::cout<<"\t";
+	}
+}

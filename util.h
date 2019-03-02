@@ -427,6 +427,16 @@ std::array<std::pair<A,B>,LEN> zip(std::array<A,LEN> const& a,std::array<B,LEN> 
 	return r;
 }
 
+template<typename A,typename B,size_t LEN>
+std::vector<std::pair<A,B>> zip(std::vector<A> const& a,std::array<B,LEN> const& b){
+	std::vector<std::pair<A,B>> r;
+	std::transform(
+		begin(a),begin(a)+std::min(a.size(),LEN),begin(b),back_inserter(r),
+		[](auto a1,auto b1){ return std::make_pair(a1,b1); }
+	);
+	return r;
+}
+
 template<typename Func,typename K,typename V>
 auto map_values(Func f,std::map<K,V> const& in){
 	std::map<K,decltype(f(in.begin()->second))> r;
@@ -629,5 +639,7 @@ std::vector<std::pair<K,V>> to_vec(std::map<K,V> a){
 size_t sum(std::multiset<bool> const&);
 float mean(std::multiset<bool> const&);
 std::string pop(std::vector<std::string>&);
+
+#define INST(A,B) A B;
 
 #endif

@@ -83,8 +83,6 @@ using Hatches=int;
 	X(Hatches,hatches)\
 	X(Climb_result,climb)
 
-#define INST(A,B) A B;
-
 struct Robot_strategy{
 	ROBOT_STRATEGY_ITEMS(INST)
 };
