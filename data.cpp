@@ -7,6 +7,34 @@
 
 using namespace std;
 
+Climb_assist::Climb_assist(int x):i(x){
+	assert(i>=0 && i<=3);
+}
+
+int Climb_assist::get()const{
+	return i;
+}
+
+std::ostream& operator<<(std::ostream& o,Climb_assist a){
+	return o<<a.get();
+}
+
+bool operator!=(Climb_assist a,Climb_assist b){
+	return a.get()!=b.get();
+}
+
+Climb_assist parse(const Climb_assist *,std::string const& s){
+	if(s=="0") return Climb_assist(0);
+	if(s=="1") return Climb_assist(1);
+	if(s=="2") return Climb_assist(2);
+	if(s=="3") return Climb_assist(3);
+	assert(0);
+}
+
+Climb_assist rand(const Climb_assist*){
+	return Climb_assist{rand()%4};
+}
+
 using Team=int;//official season; all the teams will have real numbers.
 
 Team rand(const Team*){
@@ -342,7 +370,7 @@ void check_consistency(Scouting_data d){
 
 				auto other_teams=filter([=](auto x){ return x!=point.team; },MAP(team,alliance_data));
 				if(other_teams.size()==2){
-					auto add_buddy=[&](Team team,Climb_result result){
+					/*auto add_buddy=[&](Team team,Climb_result result){
 						auto f=climb_info.find(team);
 						if(f==climb_info.end()){
 							climb_info[team]=make_pair(result,point.team);
@@ -365,7 +393,7 @@ void check_consistency(Scouting_data d){
 					if(point.climb_buddy_higher){
 						auto buddy_higher=other_teams[1];
 						add_buddy(buddy_higher,point.climb_buddy_higher);
-					}
+					}*/
 				}
 			}
 		}

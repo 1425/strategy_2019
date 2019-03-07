@@ -14,7 +14,7 @@
 #include<algorithm>
 #include<sstream>
 
-#define nyi { std::cout<<"nyi "<<__LINE__<<"\n"; exit(44); }
+#define nyi { std::cout<<"nyi "<<__FILE__<<":"<<__LINE__<<"\n"; exit(44); }
 #define PRINT(X) { std::cout<<""#X<<":"<<(X)<<"\n"; }
 
 template<typename T,typename T2>

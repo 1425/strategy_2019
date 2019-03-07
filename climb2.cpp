@@ -56,6 +56,13 @@ struct Climb_result_robot{
 	CLIMB_RESULT_ROBOT_ITEMS(INST)
 };
 
+bool operator<(Climb_result_robot const& a,Climb_result_robot const& b){
+	#define X(A,B) if(a.B<b.B) return 1; if(b.B<a.B) return 0;
+	CLIMB_RESULT_ROBOT_ITEMS(X)
+	#undef X
+	return 0;
+}
+
 std::ostream& operator<<(std::ostream& o,Climb_result_robot const& a){
 	o<<"Climb_result_robot( ";
 	#define X(A,B) o<<""#B<<":"<<a.B<<" ";
@@ -75,6 +82,13 @@ using Partner_count=int;//0-2
 struct Climb2_situation{
 	CLIMB2_SITUATION_ITEMS(INST)
 };
+
+bool operator<(Climb2_situation const& a,Climb2_situation const& b){
+	#define X(A,B) if(a.B<b.B) return 1; if(b.B<a.B) return 0;
+	CLIMB2_SITUATION_ITEMS(X)
+	#undef X
+	return 0;
+}
 
 ostream& operator<<(std::ostream& o,Climb2_situation const& a){
 	o<<"Climb2_situation( ";
@@ -216,7 +230,7 @@ Climb_data_robot climb_data_robot(Robot_match_data a){
 }
 
 map<Team,Climb_capabilities> analyze_climb(Scouting_data d){
-	map<Team,pair<Climb_result_robot,Climb2_situation>> by_team;
+	map<Team,vector<pair<Climb_result_robot,Climb2_situation>>> by_team;
 	//vector<Climb_data_alliance>)nyi
 	for(auto data:values(group(alliance_id,d))){
 		Climb_data_alliance cd=mapf(climb_data_robot,data);
@@ -224,7 +238,8 @@ map<Team,Climb_capabilities> analyze_climb(Scouting_data d){
 		for(auto [data_point,situation]:zip(data,dm)){
 			PRINT(data_point);
 			PRINT(situation);
-			//by_team[data_point.team]|=situation;
+			//pair<Climb_result_robot,Climb2_situation> p=situation;
+			by_team[data_point.team]|=situation;
 		}
 	}
 
@@ -233,7 +248,9 @@ map<Team,Climb_capabilities> analyze_climb(Scouting_data d){
 	map<Team,Climb_capabilities> r;
 	for(auto [team,data]:by_team){
 		PRINT(team);
-		PRINT(data);
+		//PRINT(data);
+		print_lines(sorted(data));
+		
 		nyi
 	}
 	return r;

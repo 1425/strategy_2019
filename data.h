@@ -11,6 +11,21 @@ enum class Alliance{RED,BLUE};
 
 std::ostream& operator<<(std::ostream&,Alliance);
 
+class Climb_assist{
+	//0-3
+	int i;
+
+	public:
+	explicit Climb_assist(int);
+
+	int get()const;
+};
+
+bool operator!=(Climb_assist,Climb_assist);
+std::ostream& operator<<(std::ostream&,Climb_assist);
+Climb_assist rand(const Climb_assist*);
+Climb_assist parse(const Climb_assist*,std::string const&);
+
 #define ROBOT_MATCH_DATA_ITEMS(X)\
 	X(Team,team,0)\
 	X(Match,match,0)\
@@ -19,8 +34,9 @@ std::ostream& operator<<(std::ostream&,Alliance);
 	X(unsigned,balls,0)\
 	X(unsigned,hatches,0)\
 	X(Climb_result,climb,{})\
-	X(Climb_result,climb_buddy_lower,{})\
-	X(Climb_result,climb_buddy_higher,{})
+	X(Climb_assist,climb_assist_a,Climb_assist(0))\
+	X(Climb_assist,climb_assist_b,Climb_assist(0))\
+	X(bool,climb_was_assisted,0)
 
 struct Robot_match_data{
 	#define X(A,B,C) A B=C;
