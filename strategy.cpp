@@ -4,6 +4,7 @@
 #include "table.h"
 #include "climb.h"
 #include "data.h"
+#include "climb2.h"
 
 using namespace std;
 
@@ -13,9 +14,10 @@ TODO: probability of winning based on different likelyhood of different types of
 
 #define ROBOT_CAPABILITIES_ITEMS(X)\
 	X(float,shelf_odds,0)\
-	X(Climb_odds,climb,Climb_odds{})\
+	X(Climb_capabilities,climb,Climb_capabilities{})\
 	X(float,ball_time,teleop_length()+1)\
-	X(float,hatch_time,teleop_length()+1)
+	X(float,hatch_time,teleop_length()+1)\
+	X(float,bonus,0)
 
 struct Robot_capabilities{
 	//by default, can do almost nothing.
@@ -56,13 +58,24 @@ Robot_capabilities operator+(Robot_capabilities a,Robot_capabilities const& b){
 
 Robot_capabilities rand(const Robot_capabilities*){
 	Robot_capabilities r;
-	r.climb=rand((Climb_odds*)nullptr);
+	r.climb=rand((Climb_capabilities*)nullptr);
 	r.ball_time=1+rand()%100;
 	r.hatch_time=1+rand()%100;
 	return r;
 }
 
+float odds(Climb_capabilities cap,Climb_type a){
+	switch(a){
+		case Climb_type::P3: return cap.self[Climb_action::L1_SELF];
+		case Climb_type::P6: return cap.self[Climb_action::L2_SELF];
+		case Climb_type::P12: return cap.self[Climb_action::L3_SELF];
+		default: assert(0);
+	}
+}
+
 vector<Climb_result> climb_capabilities(Robot_capabilities const& capabilities){
+	//eventually, this will need to change form
+	//probably do all the climbing seperate from the main part of the game.
 	return filter(
 		[=](auto climb_result)->bool{
 			if(!climb_result) return 1;
@@ -253,6 +266,7 @@ int points(Alliance_capabilities cap,Alliance_strategy strat){
 	auto hatches=sum(mapf([](auto a){ return a.hatches; },strat));
 	auto p=points(balls,hatches);
 
+	//nyi (void)shelf_points; (void)p; 
 	auto climb_points=sum(mapf(
 		[](auto p)->float{
 			if(!p.second.climb){
@@ -264,7 +278,9 @@ int points(Alliance_capabilities cap,Alliance_strategy strat){
 		},
 		zip(cap,strat)
 	));
-	return shelf_points+p+climb_points;
+
+	auto bonus_points=sum(mapf([](auto a){ return a.bonus; },cap));
+	return shelf_points+p+climb_points+bonus_points;
 }
 
 Alliance_strategy normalize(Alliance_strategy a){
@@ -298,7 +314,7 @@ int points(Alliance_capabilities const& cap){
 	return r;
 }
 
-map<Team,Climb_odds> show_climb_summary(Scouting_data d){
+map<Team,Climb_odds> show_climb_summary1(Scouting_data d){
 	/*
 	Note: The odds that this returns do not add up to 100% becuase they are odds of things happening under different circumstances.
 	So for example, it would be possible to return (0,1,1), which would mean that a team climbs L3 anytime it's open and otherwise 
@@ -346,6 +362,10 @@ map<Team,Climb_odds> show_climb_summary(Scouting_data d){
 		},
 		by_team
 	);
+}
+
+map<Team,Climb_capabilities> show_climb_summary(Scouting_data a){
+	return analyze_climb(a);
 }
 
 map<Team,float> interpret_shelf(Scouting_data d){
@@ -417,22 +437,14 @@ map<Team,Robot_capabilities> interpret_data(Scouting_data d){
 
 string th1(string s){ return th(s); }
 
-int by_alliance(vector<string> args){
-	Team target_team;
-	switch(args.size()){
-		case 0:
-			target_team=1425;
-			break;
-		case 1:
-			target_team=atoi(args[0]);
-			break;
-		default:
-			cerr<<"Error: Unexpected arguments";
-			return 1;
-	}
-
-	csv_test();
-	auto robots=interpret_data(example_input());
+int by_alliance(Team target_team,optional<string> path){
+	//csv_test();
+	auto data_to_use=[=](){
+		if(!path) return example_input();
+		return read_data(*path);
+	}();
+	check_consistency(data_to_use);
+	auto robots=interpret_data(data_to_use);
 
 	assert(robots.size());
 	if(robots.count(target_team)!=1){
@@ -452,10 +464,14 @@ int by_alliance(vector<string> args){
 						th1,
 						vector<string>{
 							"Team number","P(shelf)",
-							"P(Climb L1) | (not L2 or L3)",
-							"P(Climb L2) | (available & !L3)",
-							"P(Climb L3) | available",
-							"Ball time(s)","Hatch time (s)"
+							"Ball time(s)","Hatch time (s)",
+							"P(Climb L1)<br> | (not L2 or L3)",
+							"P(Climb L2)<br> | (available & !L3)",
+							"P(Climb L3)<br> | available",
+							"P(l2_helpee)",
+							"P(l3_helpee)",
+							"Help given",
+							"Bonus"
 							/*#define X(A,B,C) ""#B,
 							ROBOT_CAPABILITIES_ITEMS(X)
 							#undef X*/
@@ -464,10 +480,18 @@ int by_alliance(vector<string> args){
 					join(mapf(
 						[](auto p){
 							auto [team,cap]=p;
+							//put new climb stuff here.
 							return tr(
 								td(team)+td(cap.shelf_odds)+
-								td(cap.climb.l1)+td(cap.climb.l2)+td(cap.climb.l3)+
-								td(cap.ball_time)+td(cap.hatch_time)
+								//td(cap.climb.l1)+td(cap.climb.l2)+td(cap.climb.l3)+
+								td(cap.ball_time)+td(cap.hatch_time)+
+								td(cap.climb.self[Climb_action::L1_SELF])+
+								td(cap.climb.self[Climb_action::L2_SELF])+
+								td(cap.climb.self[Climb_action::L3_SELF])+
+								td(cap.climb.self[Climb_action::L2_HELPEE])+
+								td(cap.climb.self[Climb_action::L3_HELPEE])+
+								td(cap.climb.help_given)+
+								td(cap.bonus)
 								/*join(vector<string>{
 									#define X(A,B,C) td(cap.
 								})*/
@@ -597,39 +621,73 @@ int by_alliance(vector<string> args){
 }
 
 int main(int argc,char **argv){
+	Team team=1425;
+	auto set_team=[&](vector<string>& a)->int{
+		assert(a.size());
+		team=atoi(a[0].c_str());
+		a=skip(1,a);
+		return 0;
+	};
+	std::optional<std::string> path;
+	auto set_path=[&](vector<string>& a)->int{
+		assert(a.size());
+		path=a[0];
+		a=skip(1,a);
+		return 0;
+	};
 	vector<tuple<
 		const char *, //name
 		const char *, //arg info
 		const char *, //msg
-		std::function<int(vector<string>)>
+		std::function<int(vector<string>&)>
 	>> options{
-		make_tuple("--picklist","[team number]","Create picklist for the given team number",by_alliance),
+		make_tuple(
+			"--team","<TEAM NUMBER>","Create picklist for the given team number",
+			std::function<int(vector<string>&)>(set_team)
+		),
+		make_tuple(
+			"--file","<PATH>","Create picklist for the given team number",
+			std::function<int(vector<string>&)>(set_path)
+		)
 	};
-	auto help=[&](vector<string>){
+	
+	auto help=[&](vector<string>&)->int{
 		cout<<"Available arguments:\n";
 		for(auto [arg,arg_info,msg,func]:options){
 			(void)func;
 			cout<<"\t"<<arg<<" "<<arg_info<<"\n";
 			cout<<"\t\t"<<msg<<"\n";
 		}
-		return 0;
+		exit(0);
 	};
-	options|=make_tuple("--help","","Display this message",help);
+	options|=make_tuple(
+		"--help","","Display this message",
+		std::function<int(vector<string>&)>(help)
+	);
 
-	if(argc<2){
-		cout<<"Argument required.\n\n";
-		help({});
-		return 1;
-	}
+	auto arg_list=args(argc,argv);
+	arg_list=skip(1,arg_list); //skip name of the binary.
 
-	for(auto [arg,arg_info,msg,func]:options){
-		(void) arg_info;
-		(void) msg;
-		if(argv[1]==string(arg)){
-			return func(skip(2,args(argc,argv)));
+	while(arg_list.size()){
+		bool found=0;
+		for(auto [arg,arg_info,msg,func]:options){
+			(void) arg_info;
+			(void) msg;
+			if(arg_list[0]==arg){
+				found=1;
+				arg_list=skip(1,arg_list);
+				auto r=func(arg_list);
+				if(r){
+					cout<<"Failed.\n";
+					return r;
+				}
+			}
+		}
+		if(!found){
+			cerr<<"Unrecognized arg:"<<arg_list;
+			return 1;
 		}
 	}
-	cerr<<"Unrecognized argument: \""<<argv[1]<<"\"\n";
-	return 1;
+	return by_alliance(team,path);
 }
 

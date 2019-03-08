@@ -162,8 +162,8 @@ unsigned int parse(const unsigned int*,std::string s){
 	return atoi(s.c_str());
 }
 
-Scouting_data read_data(){
-	ifstream f("example.csv");
+Scouting_data read_data(string const& filename){
+	ifstream f(filename);
 	assert(f.good());
 	string s;
 	getline(f,s);
@@ -172,7 +172,12 @@ Scouting_data read_data(){
 		#define X(A,B,C) ss<<""#B<<",";
 		ROBOT_MATCH_DATA_ITEMS(X)
 		#undef X
-		assert(s==ss.str());
+		auto expected=ss.str().substr(0,ss.str().size()-1);
+		if(s!=expected){
+			PRINT(s);
+			PRINT(expected);
+		}
+		assert(s==expected);
 		//assert(s=="team,match,alliance,balls,hatches,climb,");
 	}
 	Scouting_data r;
@@ -248,7 +253,7 @@ A first(pair<A,B>)nyi
 template<typename A,typename B>
 B second(pair<A,B>)nyi
 
-void check_consistency(Scouting_data d){
+void check_consistency(Scouting_data const& d){
 	int invalid_cnt=0;
 	int incomplete_cnt=0;
 
@@ -414,6 +419,6 @@ void csv_test(){
 	auto r=example_input();
 	check_consistency(r);
 	write_file("example.csv",to_csv(r));
-	assert(read_data()==r);
+	assert(read_data("example.csv")==r);
 }
 

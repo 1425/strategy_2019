@@ -54,5 +54,7 @@ using Scouting_data=std::vector<Robot_match_data>;
 
 Scouting_data example_input();
 void csv_test();
+Scouting_data read_data(std::string const&);
+void check_consistency(Scouting_data const&);
 
 #endif

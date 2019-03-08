@@ -16,30 +16,12 @@ struct Climb_data_robot{
 
 using Climb_data_alliance=std::vector<Climb_data_robot>; //usually of length 3.
 
-//enum class Climb_action{NONE,L1_SELF,L2_SELF,L3_SELF,L2_HELPEE,L3_HELPEE};
-#define CLIMB_ACTION_ITEMS(X)\
-	X(NONE) X(L1_SELF) X(L2_SELF) X(L3_SELF) X(L2_HELPEE) X(L3_HELPEE)
-
-enum class Climb_action{
-	#define X(A) A,
-	CLIMB_ACTION_ITEMS(X)
-	#undef X
-};
-
 std::ostream& operator<<(std::ostream& o,Climb_action a){
 	#define X(A) if(a==Climb_action::A) return o<<""#A;
 	CLIMB_ACTION_ITEMS(X)
 	#undef X
 	assert(0);
 }
-
-#define HELP_GIVEN_ITEMS(X) \
-	X(NONE) X(L2) X(L3) X(L22) X(L23) X(L33)
-enum class Help_given{
-	#define X(A) A,
-	HELP_GIVEN_ITEMS(X)
-	#undef X
-};
 
 std::ostream& operator<<(std::ostream& o,Help_given a){
 	#define X(A) if(a==Help_given::A) return o<<""#A;
@@ -74,7 +56,7 @@ std::ostream& operator<<(std::ostream& o,Climb_result_robot const& a){
 using Partner_count=int;//0-2
 
 #define CLIMB2_SITUATION_ITEMS(X)\
-	X(bool,l2_available)\
+	X(int,l2_available)\
 	X(bool,l3_available)\
 	X(Partner_count,partners_below_l3)\
 	X(Partner_count,partners_below_l2)
@@ -98,13 +80,58 @@ ostream& operator<<(std::ostream& o,Climb2_situation const& a){
 	return o<<")";
 }
 
-struct Climb_capabilities{
-	map<Climb_action,float> self;
-	map<Help_given,float> help_given;
-};
+bool operator<(Climb_capabilities const& a,Climb_capabilities const& b){
+	#define X(A,B) if(a.B<b.B) return 1; if(b.B<a.B) return 0;
+	CLIMB_CAPABILITIES_ITEMS(X)
+	#undef X
+	return 0;
+}
 
-std::ostream& operator<<(std::ostream& ,Climb_capabilities const& ){
+template<typename K,typename V>
+map<K,V>& operator+=(map<K,V>& a,map<K,V> const& b){
+	for(auto [k,v]:b){
+		auto f=a.find(k);
+		if(f==a.end()){
+			a[k]=v;
+		}else{
+			f->second+=v;
+		}
+	}
+	return a;
+}
+
+Climb_capabilities& operator+=(Climb_capabilities& a,Climb_capabilities const& b){
+	#define X(A,B) a.B+=b.B;
+	CLIMB_CAPABILITIES_ITEMS(X)
+	#undef X
+	return a;
+}
+
+template<typename K>
+map<K,float>& operator/=(map<K,float>& a,float f){
+	for(auto &p:a){
+		p.second/=f;
+	}
+	return a;
+}
+
+Climb_capabilities& operator/=(Climb_capabilities& a,float f){
+	#define X(A,B) a.B/=f;
+	CLIMB_CAPABILITIES_ITEMS(X)
+	#undef X
+	return a;
+}
+
+Climb_capabilities rand(const Climb_capabilities*){
 	nyi
+}
+
+std::ostream& operator<<(std::ostream& o,Climb_capabilities const& a){
+	o<<"Climb_capabilities( ";
+	#define X(A,B) o<<""#B<<":"<<a.B<<" ";
+	CLIMB_CAPABILITIES_ITEMS(X)
+	#undef X
+	return o<<")";
 }
 
 template<typename T,size_t N>
@@ -129,13 +156,13 @@ vector<T> without_index(size_t i,std::vector<T> const& a){
 	return r;
 }
 
-std::array<pair<Climb_result_robot,Climb2_situation>,3> demangle(Climb_data_alliance const& a){
-	std::array<pair<Climb_result_robot,Climb2_situation>,3> r;
+vector<pair<Climb_result_robot,Climb2_situation>> demangle(Climb_data_alliance const& a){
+	std::vector<pair<Climb_result_robot,Climb2_situation>> r;
 	for(auto i:range(a.size())){
-		auto this_robot=a[i];
+		auto this_robot=a.at(i);
 		auto others=without_index(i,a);
 		Climb2_situation cs;
-		cs.l2_available=filter([](auto x){ return x.self==Climb_type::P6; },others).size()<2;
+		cs.l2_available=2-filter([](auto x){ return x.self==Climb_type::P6; },others).size();
 		cs.l3_available=filter([](auto x){ return x.self==Climb_type::P12; },others).size()<1;
 		cs.partners_below_l2=filter(
 			[](auto x){ return x.self==Climb_result{} || x.self==Climb_type::P3; },
@@ -150,11 +177,16 @@ std::array<pair<Climb_result_robot,Climb2_situation>,3> demangle(Climb_data_alli
 				if(this_robot.self){
 					if(this_robot.was_helped){
 						switch(*this_robot.self){
+							case Climb_type::P3:
+								//being helped to level 1 will be ignored.
+								return Climb_action::L1_SELF;
 							case Climb_type::P6:
 								return Climb_action::L2_HELPEE;
 							case Climb_type::P12:
 								return Climb_action::L3_HELPEE;
-							default: assert(0);
+							default:
+								PRINT(this_robot.self);
+								assert(0);
 						}
 					}else{
 						switch(*this_robot.self){
@@ -209,54 +241,109 @@ std::array<pair<Climb_result_robot,Climb2_situation>,3> demangle(Climb_data_alli
 				}
 			}()
 		};
-		r[i]=make_pair(climb_result_robot,cs);
+		r|=make_pair(climb_result_robot,cs);
 	}
 	return r;
 }
 
+Helpee_result to_helpee_result(Climb_assist const& a){
+	switch(a.get()){
+		case 0: return Helpee_result::NOT_HELPED;
+		case 1: return Helpee_result::NOT_HELPED; //if you are marked as helping someone to level 1 this counts for nothing.
+		case 2: return Helpee_result::L2;
+		case 3: return Helpee_result::L3;
+		default: assert(0);
+	}
+}
+
 Climb_data_robot climb_data_robot(Robot_match_data a){
-	
-/*	truct Climb_data_robot{
-        Climb_result self;
-        std::array<Helpee_result,2> helpees;
-        bool was_helped;
-};*/
 	return Climb_data_robot{
 		a.climb,
-		//TODO: These next two lines need to change.
-		{Helpee_result::NOT_HELPED,Helpee_result::NOT_HELPED},
-		0
+		{to_helpee_result(a.climb_assist_a),to_helpee_result(a.climb_assist_b)},
+		a.climb_was_assisted
 	};
 }
 
-map<Team,Climb_capabilities> analyze_climb(Scouting_data d){
+template<typename T>
+map<T,float> averages(map<T,pair<unsigned,unsigned>> const& in){
+	return map_values(
+		[](auto p)->float{
+			if(p.first==0){
+				//force to 0 when no examples rather than letting it go to inf or some undefined number.
+				return 0;
+			}
+			return (0.0+p.second)/p.first;
+		},
+		in
+	);
+}
+
+Climb_capabilities f(vector<pair<Climb_result_robot,Climb2_situation>> a){
+	//first item in pair is oppurtunities, second is actually done
+	map<Climb_action,pair<unsigned,unsigned>> self;
+	map<Help_given,pair<unsigned,unsigned>> help_given;
+
+	for(auto [result,situation]:a){
+		self[result.climb_action].second++;
+
+		self[Climb_action::NONE].first+=result.climb_action==Climb_action::NONE;
+		self[Climb_action::L1_SELF].first+=(result.climb_action==Climb_action::NONE || result.climb_action==Climb_action::L1_SELF);
+		self[Climb_action::L2_SELF].first+=(result.climb_action==Climb_action::L2_SELF) || (
+			situation.l2_available && (
+				result.climb_action==Climb_action::NONE || result.climb_action==Climb_action::L1_SELF
+			)
+		);
+		self[Climb_action::L3_SELF].first+=(result.climb_action==Climb_action::L3_SELF) || (
+			situation.l3_available && result.climb_action!=Climb_action::L3_HELPEE
+		);
+		self[Climb_action::L2_HELPEE].first+=result.climb_action!=Climb_action::L3_SELF && result.climb_action!=Climb_action::L3_HELPEE && situation.l2_available;
+		self[Climb_action::L3_HELPEE].first+=result.climb_action!=Climb_action::L3_SELF && situation.l3_available;
+
+		help_given[result.help_given].second++;
+		help_given[Help_given::NONE].first+=result.help_given==Help_given::NONE;
+		help_given[Help_given::L2].first+=situation.partners_below_l2>=1 && situation.l2_available && (
+			result.help_given==Help_given::NONE || result.help_given==Help_given::L2
+		);
+		help_given[Help_given::L3].first+=situation.partners_below_l3>=1 && situation.l3_available && (
+			result.help_given==Help_given::NONE || result.help_given==Help_given::L2 || result.help_given==Help_given::L3
+		);
+		help_given[Help_given::L22].first+=situation.partners_below_l2>=2 && situation.l2_available>=2 && (
+			result.help_given!=Help_given::L3 && result.help_given!=Help_given::L23 && result.help_given!=Help_given::L33
+		);
+		help_given[Help_given::L23].first+=(
+			situation.partners_below_l2>=1 && 
+			situation.partners_below_l3>=1 && 
+			situation.l2_available && 
+			situation.l3_available && 
+			result.help_given!=Help_given::L33
+		);
+
+		//Don't look for there to actually be 
+		help_given[Help_given::L33].first+=result.help_given==Help_given::L33 || (situation.partners_below_l3>=2 && situation.l3_available /*>=2*/);
+	}
+	return Climb_capabilities{averages(self),averages(help_given)};
+}
+
+map<Team,Climb_capabilities> analyze_climb(Scouting_data const& d){
 	map<Team,vector<pair<Climb_result_robot,Climb2_situation>>> by_team;
 	//vector<Climb_data_alliance>)nyi
 	for(auto data:values(group(alliance_id,d))){
 		Climb_data_alliance cd=mapf(climb_data_robot,data);
 		auto dm=demangle(cd);
 		for(auto [data_point,situation]:zip(data,dm)){
-			PRINT(data_point);
-			PRINT(situation);
-			//pair<Climb_result_robot,Climb2_situation> p=situation;
 			by_team[data_point.team]|=situation;
 		}
 	}
 
-	print_r(by_team);
-
 	map<Team,Climb_capabilities> r;
 	for(auto [team,data]:by_team){
-		PRINT(team);
-		//PRINT(data);
-		print_lines(sorted(data));
-		
-		nyi
+		r[team]=f(data);
 	}
 	return r;
 }
 
-int main(){
+/*int main(){
 	Scouting_data d=example_input();
-	PRINT(analyze_climb(d));
-}
+	auto result=analyze_climb(d);
+	print_r(result);
+}*/
