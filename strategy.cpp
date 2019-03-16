@@ -445,6 +445,44 @@ int by_alliance(Team target_team,optional<string> path){
 	}();
 	check_consistency(data_to_use);
 	auto robots=interpret_data(data_to_use);
+	{
+		auto f=robots.find(Team{1425});
+		assert(f!=robots.end());
+		f->second.climb.self[Climb_action::L3_SELF]=.8;
+	}
+	for(auto& p:robots){
+		p.second.shelf_odds=(p.second.shelf_odds>.05)?1:p.second.shelf_odds;
+		if(p.first==Team{5085}){
+			p.second.bonus=-5;
+		}/*
+		if(p.first==Team{2733}){
+			p.second.bonus=.5;
+		}
+		if(p.first==Team{6831}){
+			p.second.bonus=-3;
+		}
+		if(p.first==Team{2550}){
+			p.second.bonus-=3;
+		}*/
+		if(p.first==Team{3636}){
+			p.second.bonus-=3;
+		}
+		if(p.first==Team{2471}){
+			p.second.bonus+=.5;
+		}
+		if(p.first==Team{2915}){
+			p.second.bonus-=2;
+		}
+		if(p.first==Team{6465}){
+			p.second.bonus+=4;
+		}
+		if(p.first==Team{2898}){
+			p.second.bonus-=2;
+		}
+		if(p.first==Team{3673}){
+			p.second.bonus+=6;
+		}
+	}
 
 	assert(robots.size());
 	if(robots.count(target_team)!=1){
@@ -620,7 +658,47 @@ int by_alliance(Team target_team,optional<string> path){
 	return 0;
 }
 
+using Alliance_teams=tuple<Team,Team,Team>;
+using Schedule_entry=pair<Alliance_teams,Alliance_teams>;
+
+vector<string> split(string s){
+	vector<string> r;
+	stringstream ss;
+	for(auto c:s){
+		if(isblank(c)){
+			if(ss.str().size()){
+				r|=ss.str();
+				ss.str("");
+			}
+		}else{
+			ss<<c;
+		}
+	}
+	if(ss.str().size()){
+		r|=ss.str();
+	}
+	return r;
+}
+
+/*vector<Schedule_entry> parse_schedule(){
+	vector<Schedule_entry> r;
+	ifstream f("data/schedule.txt");
+	while(f.good()){
+		string s;
+		getline(f,s);
+		auto sp=split(s);
+		if(sp.size()==6){
+			auto teams=mapf([](auto s){ return atoi(s.c_str()); },sp);
+			auto a1=take(3,teams);
+			auto a2=skip(3,teams);
+			r|=make_pair(a1,a2);
+		}
+	}
+	return r;
+}*/
+
 int main(int argc,char **argv){
+	//print_lines(parse_schedule());
 	Team team=1425;
 	auto set_team=[&](vector<string>& a)->int{
 		assert(a.size());

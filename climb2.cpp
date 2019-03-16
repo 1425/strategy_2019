@@ -336,6 +336,7 @@ map<Team,Climb_capabilities> analyze_climb(Scouting_data const& d){
 	}
 
 	map<Team,Climb_capabilities> r;
+	print_lines(r);
 	for(auto [team,data]:by_team){
 		r[team]=f(data);
 	}

@@ -1,7 +1,7 @@
 CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z
 
 test: table strategy
-	time ./strategy --picklist
+	time ./strategy --team 2910 --file data/2019wamou.csv
 
 strategy: table.cpp util.cpp climb.cpp data.cpp climb2.cpp
 
