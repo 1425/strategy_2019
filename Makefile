@@ -1,4 +1,4 @@
-CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z
+CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -flto -Ofast
 
 test: table strategy
 	time ./strategy --team 2910 --file data/2019wamou.csv
@@ -9,6 +9,8 @@ table: util.cpp
 	$(CXX) $(CXXFLAGS) -DTABLE_MAIN $< $@.cpp -o $@
 
 climb2: util.cpp data.cpp climb.cpp
+
+explore: util.cpp
 
 .PHONY: clean
 clean:

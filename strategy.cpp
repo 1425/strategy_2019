@@ -383,7 +383,7 @@ map<Team,float> interpret_shelf(Scouting_data d){
 		}
 	}
 	
-	return MAP_VALUES(mean,by_team);
+	return MAP_VALUES([](auto x){ return mean_else(x,0); },by_team);
 }
 
 map<Team,Robot_capabilities> interpret_data(Scouting_data d){
@@ -447,8 +447,9 @@ int by_alliance(Team target_team,optional<string> path){
 	auto robots=interpret_data(data_to_use);
 	{
 		auto f=robots.find(Team{1425});
-		assert(f!=robots.end());
-		f->second.climb.self[Climb_action::L3_SELF]=.8;
+		if(f!=robots.end()){
+			f->second.climb.self[Climb_action::L3_SELF]=.8;
+		}
 	}
 	for(auto& p:robots){
 		p.second.shelf_odds=(p.second.shelf_odds>.05)?1:p.second.shelf_odds;

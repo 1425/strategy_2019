@@ -17,6 +17,10 @@
 #define nyi { std::cout<<"nyi "<<__FILE__<<":"<<__LINE__<<"\n"; exit(44); }
 #define PRINT(X) { std::cout<<""#X<<":"<<(X)<<"\n"; }
 
+size_t sum(std::multiset<bool> const&);
+float mean(std::multiset<bool> const&);
+std::string pop(std::vector<std::string>&);
+
 template<typename T,typename T2>
 std::vector<T>& operator|=(std::vector<T> &a,T2 t){
 	a.push_back(std::move(t));
@@ -599,12 +603,10 @@ std::vector<T> take(size_t lim,std::vector<T> in){
 	return std::vector<T>(begin(in),begin(in)+lim);
 }
 
-template<typename T>
-T mean_else(std::vector<T> v,T t){
-	if(v.size()){
-		return mean(v);
-	}
-	return t;
+template<typename A,typename T>
+auto mean_else(A a,T t)->decltype(mean(a)){
+	if(a.empty()) return t;
+	return mean(a);
 }
 
 template<typename T>
@@ -635,10 +637,6 @@ std::vector<std::pair<K,V>> to_vec(std::map<K,V> a){
 	}
 	return r;
 }
-
-size_t sum(std::multiset<bool> const&);
-float mean(std::multiset<bool> const&);
-std::string pop(std::vector<std::string>&);
 
 #define INST(A,B) A B;
 
