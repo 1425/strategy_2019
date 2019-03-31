@@ -1,4 +1,4 @@
-CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -flto -Ofast
+CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -O3 -flto
 
 test: table strategy
 	time ./strategy --team 2910 --file data/2019wamou.csv

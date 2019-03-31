@@ -13,6 +13,7 @@
 #include<map>
 #include<algorithm>
 #include<sstream>
+#include<bitset>
 
 #define nyi { std::cout<<"nyi "<<__FILE__<<":"<<__LINE__<<"\n"; exit(44); }
 #define PRINT(X) { std::cout<<""#X<<":"<<(X)<<"\n"; }
@@ -194,27 +195,27 @@ T id(T t){ return t; }
 #define FILTER(F,X) filter([&](auto x){ return F(x); },X)
 
 template<typename Func,typename T>
-auto mapf(Func f,std::vector<T> v) -> std::vector< decltype(f(v[0])) > {
+auto mapf(Func f,std::vector<T> const& v) -> std::vector< decltype(f(v[0])) > {
 	std::vector<decltype(f(v[0]))> r(v.size());
 	std::transform(begin(v),end(v),begin(r),f);
 	return r;
 }
 
 template<typename Func,typename K,typename V>
-auto mapf(Func f,std::map<K,V> v) -> std::vector< decltype(f(*begin(v))) > {
+auto mapf(Func f,std::map<K,V> const& v) -> std::vector< decltype(f(*begin(v))) > {
 	std::vector<decltype(f(*begin(v)))> r(v.size());
 	std::transform(begin(v),end(v),begin(r),f);
 	return r;
 }
 
 template<typename Func,typename T,size_t LEN>
-auto mapf(Func f,std::array<T,LEN> v) -> std::array< decltype(f(v[0])) , LEN> {
+auto mapf(Func f,std::array<T,LEN> const& v) -> std::array< decltype(f(v[0])) , LEN> {
 	std::array<decltype(f(v[0])),LEN> r;
 	std::transform(begin(v),end(v),begin(r),f);
 	return r;
 }
 
-#define MAP(F,V) mapf([&](auto elem){ return F(elem); },V)
+#define MAP(F,V) mapf([&](auto const& elem){ return F(elem); },V)
 
 template<typename T>
 class Nonempty_vector{
@@ -334,10 +335,10 @@ T take_first(Func f,std::multiset<T> m){
 
 #define RM_CONST(X) typename std::remove_const<X>::type
 
-#define ELEM(X) RM_CONST(RM_REF(decltype(*begin(X))))
+#define ELEM(X) RM_CONST(RM_REF(decltype(*std::begin(X))))
 
 template<typename Func,typename T>
-auto mapf(Func f,std::multiset<T> a)->
+auto mapf(Func f,std::multiset<T> const& a)->
 	std::vector<decltype(f(*begin(a)))>
 {
 	std::vector<decltype(f(*begin(a)))> r;
@@ -348,7 +349,7 @@ auto mapf(Func f,std::multiset<T> a)->
 }
 
 template<typename Func,typename T>
-auto mapf(Func f,std::set<T> a)->
+auto mapf(Func f,std::set<T> const& a)->
 	std::vector<decltype(f(*begin(a)))>
 {
 	std::vector<decltype(f(*begin(a)))> r;
@@ -438,6 +439,17 @@ std::vector<std::pair<A,B>> zip(std::vector<A> const& a,std::array<B,LEN> const&
 		begin(a),begin(a)+std::min(a.size(),LEN),begin(b),back_inserter(r),
 		[](auto a1,auto b1){ return std::make_pair(a1,b1); }
 	);
+	return r;
+}
+
+template<typename A,typename B>
+auto zip(A const& a,B const& b){
+	std::vector<std::pair<ELEM(a),ELEM(b)>> r;
+	auto ai=std::begin(a);
+	auto bi=std::begin(b);
+	for(;ai!=a.end() && bi!=b.end();++ai,++bi){
+		r|=std::make_pair(*ai,*bi);
+	}
 	return r;
 }
 
@@ -639,5 +651,136 @@ std::vector<std::pair<K,V>> to_vec(std::map<K,V> a){
 }
 
 #define INST(A,B) A B;
+
+//kind of nutty that this isn't built in.
+template<size_t N>
+bool operator<(std::bitset<N> a,std::bitset<N> b){
+	return a.to_ullong()<b.to_ullong();
+}
+
+template<typename K,size_t MAX,typename V>
+class Flat_map{
+	std::array<V,MAX> data;
+	std::bitset<MAX> present;
+	public:
+	Flat_map(){
+		present=0;
+	}
+
+	Flat_map(std::map<K,V> const& a){
+		for(auto [k,v]:a){
+			present[int(k)]=1;
+			data[int(k)]=v;
+		}
+	}
+
+	//using iterator=std::pair<K,V>*;
+	struct const_iterator{
+		const Flat_map *parent;
+		size_t i;
+
+		bool operator!=(const_iterator a){
+			return !(*this==a);
+		}
+
+		bool operator==(const_iterator a){
+			return i==a.i;
+		}
+
+		std::optional<std::pair<K,V>> operator->(){
+			assert(parent);
+			assert(parent->present[i]);
+			return std::make_pair(K(i),parent->data[i]);
+		}
+
+		std::pair<K,V> operator*(){
+			assert(parent);
+			assert(parent->present[i]);
+			return std::make_pair(K(i),parent->data[i]);
+		}
+
+		const_iterator& operator++(){
+			assert(parent);
+			assert(i<MAX);
+			i++;
+			while(i<MAX && !parent->present[i]){
+				i++;
+			}
+			return *this;
+		}
+	};
+
+	const_iterator find(K k)const{
+		size_t i=size_t(k);
+		if(present[i]){
+			return const_iterator{this,i};
+		}
+		return end();
+	}
+
+	const_iterator begin()const{
+		size_t i;
+		for(i=0;i<MAX && !present[i];i++) ;
+		return const_iterator{this,i};
+	}
+
+	const_iterator end()const{
+		return const_iterator{this,MAX};
+	}
+
+	bool operator<(Flat_map const& a)const{
+		if(present<a.present){
+			return 1;
+		}
+		if(a.present<present){
+			return 0;
+		}
+		for(auto [e,ae]:zip(*this,a)){
+			if(e<ae) return 1;
+			if(ae<e) return 0;
+		}
+		return 0;
+	}
+
+	Flat_map& operator+=(Flat_map const& a){
+		for(auto [k,v]:a){
+			size_t i=size_t(k);
+			if(present[i]){
+				data[i]+=v;
+			}else{
+				data[i]=v;
+				present[i]=1;
+			}
+		}
+		return *this;
+	}
+
+	Flat_map& operator/=(float f){
+		for(auto i:range(MAX)){
+			if(present[i]){
+				data[i]/=f;
+			}
+		}
+		return *this;
+	}
+
+	V& operator[](K k){
+		size_t i=size_t(k);
+		if(!present[i]){
+			data[i]=V{};
+			present[i]=1;
+		}
+		return data[i];
+	}
+};
+
+template<typename K,size_t MAX,typename V>
+std::ostream& operator<<(std::ostream& o,Flat_map<K,MAX,V> const& a){
+	o<<"{ ";
+	for(auto elem:a){
+		o<<elem<<" ";
+	}
+	return o<<"}";
+}
 
 #endif

@@ -23,11 +23,27 @@ std::ostream& operator<<(std::ostream& o,Climb_action a){
 	assert(0);
 }
 
+std::vector<Climb_action> climb_actions(){
+	return std::vector<Climb_action>{
+		#define X(A) Climb_action::A,
+		CLIMB_ACTION_ITEMS(X)
+		#undef X
+	};
+}
+
 std::ostream& operator<<(std::ostream& o,Help_given a){
 	#define X(A) if(a==Help_given::A) return o<<""#A;
 	HELP_GIVEN_ITEMS(X)
 	#undef X
 	assert(0);
+}
+
+std::vector<Help_given> help_givens(){
+	return std::vector<Help_given>{
+		#define X(A) Help_given::A,
+		HELP_GIVEN_ITEMS(X)
+		#undef X
+	};
 }
 
 #define CLIMB_RESULT_ROBOT_ITEMS(X)\

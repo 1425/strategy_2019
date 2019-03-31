@@ -8,9 +8,14 @@
 
 using namespace std;
 
-/*
-TODO: probability of winning based on different likelyhood of different types of robot
-*/
+template<typename T>
+vector<T> tail(vector<T> v){
+	vector<T> r;
+	for(size_t i=1;i<v.size();i++){
+		r|=v[i];
+	}
+	return r;
+}
 
 #define ROBOT_CAPABILITIES_ITEMS(X)\
 	X(float,shelf_odds,0)\
@@ -73,7 +78,32 @@ float odds(Climb_capabilities cap,Climb_type a){
 	}
 }
 
-vector<Climb_result> climb_capabilities(Robot_capabilities const& capabilities){
+using Climb_strat=pair<Climb_result,Help_given>;
+
+vector<Climb_strat> climb_capabilities(Robot_capabilities const& capabilities){
+	vector<Climb_strat> r;
+	for(auto climb_result:climb_results()){
+		if(!climb_result || odds(capabilities.climb,*climb_result)>0){
+			//now loop over possible help given
+			//assume that later on will say that people possible to help have level 1 climbed.
+			for(auto help:help_givens()){
+				auto ok=[&]()->bool{
+					if(help==Help_given::NONE) return 1;
+
+					auto f=capabilities.climb.help_given.find(help);
+					return f!=capabilities.climb.help_given.end() && f->second>0;
+				}();
+				if(ok){
+					r|=make_pair(climb_result,help);
+				}
+			}
+		}
+	}
+	assert(r.size());
+	return r;
+}
+
+/*vector<Climb_result> climb_capabilities(Robot_capabilities const& capabilities){
 	//eventually, this will need to change form
 	//probably do all the climbing seperate from the main part of the game.
 	return filter(
@@ -81,9 +111,10 @@ vector<Climb_result> climb_capabilities(Robot_capabilities const& capabilities){
 			if(!climb_result) return 1;
 			return odds(capabilities.climb,*climb_result)>0;
 		},
-		climb_results()
+		//climb_results()
+		climb
 	);
-}
+}*/
 
 using Alliance_capabilities=std::array<Robot_capabilities,3>;
 
@@ -94,7 +125,7 @@ using Hatches=int;
 	X(bool,shelf)\
 	X(Balls,balls)\
 	X(Hatches,hatches)\
-	X(Climb_result,climb)
+	X(Climb_strat,climb)
 
 struct Robot_strategy{
 	ROBOT_STRATEGY_ITEMS(INST)
@@ -127,7 +158,7 @@ vector<Robot_strategy> available_strategies(Robot_capabilities const& capabiliti
 	vector<Robot_strategy> r;
 	for(auto shelf:{0}){ //TODO: At some point will want to put the option for the shelf here once perf is better.
 		for(auto climb:climb_capabilities(capabilities)){
-			auto remaining_time=teleop_length()-(climb?CLIMB_TIME:0);
+			auto remaining_time=teleop_length()-(climb==Climb_strat{{},Help_given::NONE}?CLIMB_TIME:0);
 			unsigned max_hatches=remaining_time/capabilities.hatch_time;
 			for(auto hatches:range(1+max_hatches)){
 				auto time_for_balls=remaining_time-hatches*capabilities.hatch_time;
@@ -200,21 +231,38 @@ vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 		}
 	}*/
 
-	std::vector<array<Climb_result,3>> climb_strats;
+	std::vector<array<Climb_strat,3>> climb_strats;
 	auto ccap=mapf(climb_capabilities,a);
 	for(auto a:ccap[0]){
-		auto b_opt=to_set(ccap[1]);
-		b_opt-=((a==Climb_type::P12)?set<Climb_result>{Climb_type::P12}:set<Climb_result>{});
+		//PRINT(a);
+		//auto b_opt=to_set(ccap[1]);
+
+		auto b_opt=filter(
+			[a](Climb_strat b)->bool{
+				if(a.first==Climb_type::P12){
+					return b.first!=Climb_type::P12;
+				}
+				return 1;
+			},
+			ccap[1]
+		);
+
 		for(auto b:b_opt){
-			auto c_opt=to_set(ccap[2]);
-			if(a==Climb_type::P12 || b==Climb_type::P12){
-				c_opt-=set<Climb_result>{Climb_type::P12};
-			}
-			if(a==Climb_type::P6 && b==Climb_type::P6){
-				c_opt-=Climb_type::P6;
-			}
+			//auto c_opt=to_set(ccap[2]);
+			auto c_opt=filter(
+				[a,b](auto const& c)->bool{
+					if(a.first==Climb_type::P12 || b.first==Climb_type::P12){
+						return c.first!=Climb_type::P12;
+					}
+					if(a.first==Climb_type::P6 && b.first==Climb_type::P6){
+						return c.first!=Climb_type::P6;
+					}
+					return 1;
+				},
+				ccap[2]
+			);
 			for(auto c:c_opt){
-				climb_strats|=std::array<Climb_result,3>{{a,b,c}};
+				climb_strats|=std::array<Climb_strat,3>{{a,b,c}};
 			}
 		}
 	}
@@ -223,7 +271,7 @@ vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 		auto main_by_robot=mapf(
 			[](auto p){
 				auto [climb_strat,robot_cap]=p;
-				auto time_left=teleop_length()-(climb_strat?CLIMB_TIME:0);
+				auto time_left=teleop_length()-(climb_strat.first?CLIMB_TIME:0);
 				return main_strats(robot_cap,time_left);
 			},
 			zip(climb_strat,a)
@@ -249,17 +297,18 @@ vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 	return r;
 }
 
-int points(Alliance_capabilities cap,Alliance_strategy strat){
+int points(Alliance_capabilities const& cap,Alliance_strategy const& strat){
+	auto z=zip(cap,strat);
 	auto shelf_points=sum(mapf(
-		[](auto p)->float{
+		[](auto const& p)->float{
 			//[](Robot_capabilities rc,Robot_strategy rs)->float{
-			auto [rc,rs]=p;
+			auto const& [rc,rs]=p;
 			if(rs.shelf){
 				return 3+3*rc.shelf_odds;
 			}
 			return 3; //just assume that Sandstorm Bonus 1 will be scored.
 		},
-		zip(cap,strat)
+		z//zip(cap,strat)
 	));
 
 	auto balls=sum(mapf([](auto a){ return a.balls; },strat));
@@ -267,19 +316,70 @@ int points(Alliance_capabilities cap,Alliance_strategy strat){
 	auto p=points(balls,hatches);
 
 	//nyi (void)shelf_points; (void)p; 
+
+	vector<float> l2_help;
+	vector<float> l3_help;
+
+	for(auto const& [r_cap,r_strat]:z/*zip(cap,strat)*/){
+		//auto p=r_cap.climb.help_given[r_strat.climb.second];
+		auto f=r_cap.climb.help_given.find(r_strat.climb.second);
+		if(f==r_cap.climb.help_given.end()){
+			continue;
+		}
+		auto p=f->second;
+		switch(r_strat.climb.second){
+			case Help_given::NONE:
+				break;
+			case Help_given::L2:
+				l2_help|=p;
+				break;
+			case Help_given::L3:
+				l3_help|=p;
+				break;
+			case Help_given::L23:
+				l2_help|=p;
+				l3_help|=p;
+				break;
+			case Help_given::L22:
+				l2_help|=p;
+				l2_help|=p;
+				break;
+			case Help_given::L33:
+				l3_help|=p;
+				l3_help|=p;
+				break;
+			default: assert(0);
+		}
+	}
+
+	l2_help=reversed(sorted(l2_help));
+	l3_help=reversed(sorted(l3_help));
+
 	auto climb_points=sum(mapf(
-		[](auto p)->float{
-			if(!p.second.climb){
+		[&](auto const& p)->float{
+			if(!p.second.climb.first){
 				return 0;
 			}
-			auto type_odds=odds(p.first.climb,*p.second.climb);
-			auto type_points=points(p.second.climb);
+			//nyi //TODO: Deal w/ robots that are helped.
+			auto type_odds=odds(p.first.climb,*p.second.climb.first);
+			float type_points;
+			if(p.second.climb.first==Climb_type::P3 && l3_help.size()){
+				auto p=l3_help[0];
+				l3_help=tail(l3_help); //take from front not super efficient
+				type_points=12*p;
+			}else if(p.second.climb.first==Climb_type::P3 && l2_help.size()){
+				auto p=l2_help[0];
+				l3_help=tail(l2_help); //take from front not super efficient
+				type_points=12*p;
+			}else{
+				type_points=points(p.second.climb.first);//FIXME
+			}
 			return type_odds*type_points;
 		},
-		zip(cap,strat)
+		z//zip(cap,strat)
 	));
 
-	auto bonus_points=sum(mapf([](auto a){ return a.bonus; },cap));
+	auto bonus_points=sum(mapf([](auto const& a){ return a.bonus; },cap));
 	return shelf_points+p+climb_points+bonus_points;
 }
 

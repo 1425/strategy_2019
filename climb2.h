@@ -1,6 +1,7 @@
 #ifndef CLIMB2_H
 #define CLIMB2_H
 
+#include<bitset>
 #include "data.h"
 #include "util.h"
 
@@ -17,6 +18,8 @@ enum class Climb_action{
 
 std::ostream& operator<<(std::ostream&,Climb_action);
 
+std::vector<Climb_action> climb_actions();
+
 #define HELP_GIVEN_ITEMS(X) \
 	X(NONE) X(L2) X(L3) X(L22) X(L23) X(L33)
 enum class Help_given{
@@ -26,10 +29,16 @@ enum class Help_given{
 };
 
 std::ostream& operator<<(std::ostream&,Help_given);
+std::vector<Help_given> help_givens();
+
+//using Self_map=std::map<Climb_action,float>;
+using Self_map=Flat_map<Climb_action,6,float>;
+//using Help_map=std::map<Help_given,float>;
+using Help_map=Flat_map<Help_given,6,float>;
 
 #define CLIMB_CAPABILITIES_ITEMS(X)\
-	X(SINGLE_ARG(std::map<Climb_action,float>),self)\
-	X(SINGLE_ARG(std::map<Help_given,float>),help_given)
+	X(Self_map,self)\
+	X(Help_map,help_given)
 struct Climb_capabilities{
 	CLIMB_CAPABILITIES_ITEMS(INST)
 };
