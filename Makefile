@@ -1,4 +1,4 @@
-CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -O3 -flto
+CXXFLAGS+=-Wall -Wextra -Werror -std=c++1z -Ofast -flto -march=native -mtune=native
 
 test: table strategy
 	time ./strategy --team 2910 --file data/2019wamou.csv

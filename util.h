@@ -658,6 +658,7 @@ bool operator<(std::bitset<N> a,std::bitset<N> b){
 	return a.to_ullong()<b.to_ullong();
 }
 
+//This is designed purely for speed advantages over std::map or std::unordered_map.
 template<typename K,size_t MAX,typename V>
 class Flat_map{
 	std::array<V,MAX> data;
@@ -735,9 +736,19 @@ class Flat_map{
 		if(a.present<present){
 			return 0;
 		}
-		for(auto [e,ae]:zip(*this,a)){
+		/*for(auto [e,ae]:zip(*this,a)){
 			if(e<ae) return 1;
 			if(ae<e) return 0;
+		}*/
+		for(auto i:range(MAX)){
+			if(present[i]){
+				if(data[i]<a.data[i]){
+					return 1;
+				}
+				if(data[i]>a.data[i]){
+					return 0;
+				}
+			}
 		}
 		return 0;
 	}

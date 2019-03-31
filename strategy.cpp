@@ -297,6 +297,45 @@ vector<Alliance_strategy> available_strategies(Alliance_capabilities const& a){
 	return r;
 }
 
+template<typename T,size_t MAX>
+class Fixed_vector{
+	std::array<T,MAX> data;
+	size_t size_;
+
+	public:
+	Fixed_vector():size_(0){}
+
+	size_t size()const{
+		return size_;
+	}
+
+	T operator[](size_t i)const{
+		assert(i<size_);
+		return data[i];
+	}
+
+	void pop_back(){
+		assert(size_);
+		size_--;
+	}
+
+	Fixed_vector& operator|=(T t){
+		assert(size_<MAX);
+		data[size_]=t;
+		size_++;
+		return *this;
+	}
+
+	auto begin(){ return data.begin(); }
+	auto end(){ return data.begin()+size_; }
+};
+
+template<typename T,size_t MAX>
+Fixed_vector<T,MAX> sorted(Fixed_vector<T,MAX> a){
+	sort(begin(a),end(a));
+	return a;
+}
+
 int points(Alliance_capabilities const& cap,Alliance_strategy const& strat){
 	auto z=zip(cap,strat);
 	auto shelf_points=sum(mapf(
@@ -317,8 +356,10 @@ int points(Alliance_capabilities const& cap,Alliance_strategy const& strat){
 
 	//nyi (void)shelf_points; (void)p; 
 
-	vector<float> l2_help;
-	vector<float> l3_help;
+	Fixed_vector<float,6> l2_help;
+	Fixed_vector<float,6> l3_help;
+	//vector<float> l2_help;
+	//vector<float> l3_help;
 
 	for(auto const& [r_cap,r_strat]:z/*zip(cap,strat)*/){
 		//auto p=r_cap.climb.help_given[r_strat.climb.second];
@@ -352,8 +393,8 @@ int points(Alliance_capabilities const& cap,Alliance_strategy const& strat){
 		}
 	}
 
-	l2_help=reversed(sorted(l2_help));
-	l3_help=reversed(sorted(l3_help));
+	l2_help=sorted(l2_help);
+	l3_help=sorted(l3_help);
 
 	auto climb_points=sum(mapf(
 		[&](auto const& p)->float{
@@ -364,12 +405,12 @@ int points(Alliance_capabilities const& cap,Alliance_strategy const& strat){
 			auto type_odds=odds(p.first.climb,*p.second.climb.first);
 			float type_points;
 			if(p.second.climb.first==Climb_type::P3 && l3_help.size()){
-				auto p=l3_help[0];
-				l3_help=tail(l3_help); //take from front not super efficient
+				auto p=l3_help[l3_help.size()-1];
+				l3_help.pop_back();//l3_help=tail(l3_help); //take from front not super efficient
 				type_points=12*p;
 			}else if(p.second.climb.first==Climb_type::P3 && l2_help.size()){
-				auto p=l2_help[0];
-				l3_help=tail(l2_help); //take from front not super efficient
+				auto p=l2_help[l2_help.size()-1];
+				l2_help.pop_back();//l3_help=tail(l2_help); //take from front not super efficient
 				type_points=12*p;
 			}else{
 				type_points=points(p.second.climb.first);//FIXME
